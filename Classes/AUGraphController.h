@@ -60,7 +60,7 @@
 #define NUMFILES 1
 #define MAXTIMES 350
 #define MAXSNDS  4
-#define MAXSZKS  50
+#define MAXSZKS  5
 
 typedef struct {
 	UInt32 numFrames;
@@ -84,6 +84,11 @@ typedef struct {
     SourceAudioBufferDataPtr    sound;
 } Shizuku;
 
+typedef struct {
+    UInt32  resolution;
+    UInt64  cnt;
+} TimerInfo;
+
 @interface AUGraphController : NSObject
 {
     CFURLRef sourceURL;
@@ -97,7 +102,8 @@ typedef struct {
     
     SourceAudioBufferData mUserData[MAXSNDS];
     
-    UInt32 time, numShizuku, counter;
+    UInt32 time, numShizuku;
+    TimerInfo *timer;
     Shizuku shizuku[MAXSZKS];
     lo_server_thread    st;
 }

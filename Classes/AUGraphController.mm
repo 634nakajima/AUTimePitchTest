@@ -49,6 +49,16 @@
 
 #pragma mark- Render
 
+static OSStatus renderNotify(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
+{
+    AUGraphController *augc = (AUGraphController *)inRefCon;
+    
+    if (*ioActionFlags == kAudioUnitRenderAction_PostRender) {
+        [augc timer];
+    }
+    return noErr;
+}
+
 // render some silence
 static void SilenceData(AudioBufferList *inData)
 {
@@ -63,6 +73,7 @@ static void SilenceData(AudioBufferList *inData)
 static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
     Shizuku *shizuku = (Shizuku *)inRefCon;
+
     if (shizuku->note) {
         //NSLog(@"shizuku:%d",shizuku->distance);
 
@@ -134,12 +145,15 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku[i].color[2] = 0;
         shizuku[i].distance = 7*i;
         shizuku[i].frameNum = 0;
-        shizuku[i].ID = -1;
+        shizuku[i].ID = i;
         shizuku[i].note = 0;
         shizuku[i].sound = &mUserData[0];
     }
     time = 0;
-    numShizuku = 0;//MAXSZKS;
+    numShizuku = MAXSZKS;
+    timer = (TimerInfo *)malloc(sizeof(TimerInfo));
+    timer->resolution = 441;
+    timer->cnt = 1;
     
     printf("AUGraphController awakeFromNib\n");
     
@@ -155,11 +169,11 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     
 
     // タイマーの作成（動作開始）
-    [NSTimer scheduledTimerWithTimeInterval:0.03		// 時間間隔（秒）
+    /*[NSTimer scheduledTimerWithTimeInterval:0.03		// 時間間隔（秒）
                                      target:self	// 呼び出すオブジェクト
                                    selector:@selector(count:)	// 呼び出すメソッド
                                    userInfo:nil		// ユーザ利用の情報オブジェクト
-                                    repeats:YES];	// 繰り返し
+                                    repeats:YES];	// 繰り返し*/
     [self setUplo];
 }
 
@@ -308,6 +322,10 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         result = AUGraphSetNodeInputCallback(mGraph, converterNode[i], 0, &rcbs);
         if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     }
+    
+    result = AUGraphAddRenderNotify(mGraph, renderNotify, self);
+    if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+
     
     printf("set converter input bus %d client kAudioUnitProperty_StreamFormat\n", 0);
     
@@ -481,7 +499,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 {
     Float32 value = -120.0;
     
-    OSStatus result = AudioUnitGetParameter(mMixer, kMultiChannelMixerParam_PostAveragePower, kAudioUnitScope_Input, 0, &value);
+    OSStatus result = AudioUnitGetParameter(mMixer, kMultiChannelMixerParam_PostAveragePower, kAudioUnitScope_Output, 0, &value);
     if (result) { printf("AudioUnitGetParameter kMultiChannelMixerParam_PostAveragePower Input result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); }
     
     return value;
@@ -508,8 +526,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     }
 }
 
-// タイマーから呼び出されるメソッド
-- (void)count:(NSTimer *)timer
+- (void)timer:(UInt64)sampleRate
 {
     if(time++ == MAXTIMES) time = 0;
     
@@ -517,7 +534,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (shizuku[i].distance == time) {
             shizuku[i].note = 1;
             shizuku[i].frameNum = 0;
-            [self setTimeRate:i value:shizuku[i].angle*3];
+            //[self setTimeRate:i value:shizuku[i].angle*3];
         }
      }
 }
@@ -525,13 +542,14 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 - (void)setUplo
 {
     st = lo_server_thread_new("15000", NULL);
-    lo_server_thread_add_method(st, "/add", "iiiiiiii", shizuku_handler, self);
+    lo_server_thread_add_method(st, "/add", "iiiiiiii", shizuku_add, self);
+    lo_server_thread_add_method(st, "/delete", "iiiiiiii", shizuku_delete, self);
     lo_server_thread_add_method(st, "/user", "iii", user_handler, self);
     lo_server_thread_add_method(st, "/routo", "ii", routo_handler, self);
     lo_server_thread_start(st);
 }
 
-int shizuku_handler(const char *path, const char *types, lo_arg **argv, int argc,
+int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
                 void *data, void *user_data)
 {
     NSLog(@"add!");
@@ -550,7 +568,27 @@ int shizuku_handler(const char *path, const char *types, lo_arg **argv, int argc
     
     if (augc->numShizuku++ == 64) augc->numShizuku = 0;
     return 0;
+}
+
+int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
+                   void *data, void *user_data)
+{
+    NSLog(@"add!");
+    AUGraphController   *augc = (AUGraphController *)user_data;
     
+    if (argv[0]->i == 255) {augc->numShizuku = 0; return 0;}
+    
+    augc->shizuku[augc->numShizuku].ID          = argv[0]->i;
+    augc->shizuku[augc->numShizuku].sound       = &(augc->mUserData[argv[1]->i - 1]);
+    augc->shizuku[augc->numShizuku].distance    = argv[2]->i;
+    augc->shizuku[augc->numShizuku].area        = argv[3]->i;
+    augc->shizuku[augc->numShizuku].angle       = argv[4]->i;
+    augc->shizuku[augc->numShizuku].color[0]    = argv[5]->i;
+    augc->shizuku[augc->numShizuku].color[1]    = argv[6]->i;
+    augc->shizuku[augc->numShizuku].color[2]    = argv[7]->i;
+    
+    if (augc->numShizuku++ == 64) augc->numShizuku = 0;
+    return 0;
 }
 
 int user_handler(const char *path, const char *types, lo_arg **argv, int argc,
