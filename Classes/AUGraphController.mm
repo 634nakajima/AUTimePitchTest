@@ -54,7 +54,7 @@ static OSStatus renderNotify(void *inRefCon, AudioUnitRenderActionFlags *ioActio
     AUGraphController *augc = (AUGraphController *)inRefCon;
     
     if (*ioActionFlags == kAudioUnitRenderAction_PostRender) {
-        [augc timer];
+        [augc timer:(UInt64)inTimeStamp->mSampleTime];
     }
     return noErr;
 }
@@ -74,7 +74,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 {
     Shizuku *shizuku = (Shizuku *)inRefCon;
 
-    if (shizuku->note) {
+    if (shizuku->note && shizuku->sound) {
         //NSLog(@"shizuku:%d",shizuku->distance);
 
         AudioSampleType *in = shizuku->sound->soundBuffer[inBusNumber].data;
@@ -147,13 +147,12 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku[i].frameNum = 0;
         shizuku[i].ID = i;
         shizuku[i].note = 0;
-        shizuku[i].sound = &mUserData[0];
+        shizuku[i].sound = NULL;
     }
     time = 0;
-    numShizuku = MAXSZKS;
-    timer = (TimerInfo *)malloc(sizeof(TimerInfo));
-    timer->resolution = 441;
-    timer->cnt = 1;
+    numShizuku = 0;//MAXSZKS;
+    resolution = 441*2;
+    cnt = 1;
     
     printf("AUGraphController awakeFromNib\n");
     
@@ -163,17 +162,8 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     // create the URL we'll use for source
     
     // AAC demo track
-    NSString *source = [[NSBundle mainBundle] pathForResource:@"A" ofType:@"aif"];
-    
-    sourceURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
-    
 
-    // タイマーの作成（動作開始）
-    /*[NSTimer scheduledTimerWithTimeInterval:0.03		// 時間間隔（秒）
-                                     target:self	// 呼び出すオブジェクト
-                                   selector:@selector(count:)	// 呼び出すメソッド
-                                   userInfo:nil		// ユーザ利用の情報オブジェクト
-                                    repeats:YES];	// 繰り返し*/
+
     [self setUplo];
 }
 
@@ -212,8 +202,8 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 	OSStatus result = noErr;
     
     // load up the demo audio data
-    [self loadSpeechTrack: inSampleRate];
-    
+    //[self loadSpeechTrack: inSampleRate];
+    //[self SetupAUHAL];
     printf("-----------\n");
     printf("new AUGraph\n");
     
@@ -366,6 +356,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     result = AudioUnitSetProperty(mMixer, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &mOutputFormat, sizeof(mOutputFormat));
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
+    result = AudioUnitSetProperty(mInputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &mOutputFormat, sizeof(mOutputFormat));
     //printf("set timepitch output kAudioUnitProperty_StreamFormat\n");
     
 
@@ -382,16 +373,40 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 }
 
 // load up audio data from the demo file into mSoundBuffer.data which is then used in the render proc as the source data to render
-- (void)loadSpeechTrack:(Float64)inGraphSampleRate
+- (void)loadSpeechTrack:(Float64)inGraphSampleRate kobin:(UInt32)kID
 {
-    mUserData[0].maxNumFrames = 0;
+    mUserData[kID].maxNumFrames = 0;
         
     printf("loadSpeechTrack, %d\n", 1);
     
     ExtAudioFileRef xafref = 0;
+    NSString *source;
+    switch (kID) {
+        case 1:
+            source = [[NSBundle mainBundle] pathForResource:@"Kobin1" ofType:@"aif"];
+            break;
+            
+        case 2:
+            source = [[NSBundle mainBundle] pathForResource:@"Kobin2" ofType:@"aif"];
+            break;
+
+        case 3:
+            source = [[NSBundle mainBundle] pathForResource:@"Kobin3" ofType:@"aif"];
+            break;
+
+        case 4:
+            source = [[NSBundle mainBundle] pathForResource:@"Kobin4" ofType:@"aif"];
+            break;
+            
+        default:
+            return;
+            break;
+    }
+
+    sourceURL[kID] = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
     
     // open one of the two source files
-    OSStatus result = ExtAudioFileOpenURL(sourceURL, &xafref);
+    OSStatus result = ExtAudioFileOpenURL(sourceURL[kID], &xafref);
     if (result || !xafref) { printf("ExtAudioFileOpenURL result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
     // get the file data format, this represents the file's actual data format, we need to know the actual source sample rate
@@ -420,17 +435,17 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     if (result) { printf("ExtAudioFileSetProperty kExtAudioFileProperty_ClientDataFormat %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 
     // set up and allocate memory for the source buffer
-    mUserData[0].soundBuffer[0].numFrames = numFrames;
-    mUserData[0].soundBuffer[0].asbd = mClientFormat;
+    mUserData[kID].soundBuffer[0].numFrames = numFrames;
+    mUserData[kID].soundBuffer[0].asbd = mClientFormat;
 
     UInt32 samples = numFrames * mUserData[0].soundBuffer[0].asbd.mChannelsPerFrame;
-    mUserData[0].soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
+    mUserData[kID].soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
     
     // set up a AudioBufferList to read data into
     AudioBufferList bufList;
     bufList.mNumberBuffers = 1;
-    bufList.mBuffers[0].mNumberChannels = mUserData[0].soundBuffer[0].asbd.mChannelsPerFrame;
-    bufList.mBuffers[0].mData = mUserData[0].soundBuffer[0].data;
+    bufList.mBuffers[0].mNumberChannels = mUserData[kID].soundBuffer[0].asbd.mChannelsPerFrame;
+    bufList.mBuffers[0].mData = mUserData[kID].soundBuffer[0].data;
     bufList.mBuffers[0].mDataByteSize = samples * sizeof(AudioSampleType);
 
     // perform a synchronous sequential read of the audio data out of the file into our allocated data buffer
@@ -438,17 +453,17 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     result = ExtAudioFileRead(xafref, &numPackets, &bufList);
     if (result) {
         printf("ExtAudioFileRead result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); 
-        free(mUserData[0].soundBuffer[0].data);
-        mUserData[0].soundBuffer[0].data = 0;
+        free(mUserData[kID].soundBuffer[0].data);
+        mUserData[kID].soundBuffer[0].data = 0;
         return;
     }
     
     // update after the read to reflect the real number of frames read into the buffer
     // note that ExtAudioFile will automatically trim the 2112 priming frames off the AAC demo source
-    mUserData[0].soundBuffer[0].numFrames = numPackets;
+    mUserData[kID].soundBuffer[0].numFrames = numPackets;
     
     // maxNumFrames is used to know when we need to loop the source
-    mUserData[0].maxNumFrames = mUserData[0].soundBuffer[0].numFrames;
+    mUserData[kID].maxNumFrames = mUserData[kID].soundBuffer[0].numFrames;
     
     // close the file and dispose the ExtAudioFileRef
     ExtAudioFileDispose(xafref);
@@ -526,17 +541,20 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     }
 }
 
-- (void)timer:(UInt64)sampleRate
+- (void)timer:(UInt64)sampleTime
 {
-    if(time++ == MAXTIMES) time = 0;
+    if (sampleTime > resolution*cnt) {
+        cnt++;
+        if(time++ == MAXTIMES) time = 0;
     
-    for (UInt32 i=0; i<numShizuku; i++) {
-        if (shizuku[i].distance == time) {
-            shizuku[i].note = 1;
-            shizuku[i].frameNum = 0;
-            //[self setTimeRate:i value:shizuku[i].angle*3];
+        for (UInt32 i=0; i<numShizuku; i++) {
+            if (shizuku[i].distance == time) {
+                shizuku[i].note = 1;
+                shizuku[i].frameNum = 0;
+                [self setTimeRate:i value:shizuku[i].angle*3];
+            }
         }
-     }
+    }
 }
 
 - (void)setUplo
@@ -555,8 +573,6 @@ int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
     NSLog(@"add!");
     AUGraphController   *augc = (AUGraphController *)user_data;
     
-    if (argv[0]->i == 255) {augc->numShizuku = 0; return 0;}
-
     augc->shizuku[augc->numShizuku].ID          = argv[0]->i;
     augc->shizuku[augc->numShizuku].sound       = &(augc->mUserData[argv[1]->i - 1]);
     augc->shizuku[augc->numShizuku].distance    = argv[2]->i;
@@ -573,21 +589,36 @@ int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
 int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
                    void *data, void *user_data)
 {
-    NSLog(@"add!");
+    NSLog(@"delete!");
     AUGraphController   *augc = (AUGraphController *)user_data;
     
-    if (argv[0]->i == 255) {augc->numShizuku = 0; return 0;}
-    
-    augc->shizuku[augc->numShizuku].ID          = argv[0]->i;
-    augc->shizuku[augc->numShizuku].sound       = &(augc->mUserData[argv[1]->i - 1]);
-    augc->shizuku[augc->numShizuku].distance    = argv[2]->i;
-    augc->shizuku[augc->numShizuku].area        = argv[3]->i;
-    augc->shizuku[augc->numShizuku].angle       = argv[4]->i;
-    augc->shizuku[augc->numShizuku].color[0]    = argv[5]->i;
-    augc->shizuku[augc->numShizuku].color[1]    = argv[6]->i;
-    augc->shizuku[augc->numShizuku].color[2]    = argv[7]->i;
-    
-    if (augc->numShizuku++ == 64) augc->numShizuku = 0;
+    for (UInt32 i=0; i<augc->numShizuku; i++) {
+        if ((int)augc->shizuku[i].ID == argv[0]->i) { 
+            UInt32 j;
+            for (j=i; j<augc->numShizuku-1; j++) {
+                augc->shizuku[j].angle =augc->shizuku[j+1].angle;
+                augc->shizuku[j].area =augc->shizuku[j+1].area;
+                augc->shizuku[j].color[0] = augc->shizuku[j+1].color[0];
+                augc->shizuku[j].color[1] = augc->shizuku[j+1].color[1];
+                augc->shizuku[j].color[2] = augc->shizuku[j+1].color[2];
+                augc->shizuku[j].distance = augc->shizuku[j+1].distance;
+                augc->shizuku[j].frameNum = augc->shizuku[j+1].frameNum;
+                augc->shizuku[j].ID = augc->shizuku[j+1].ID;
+                augc->shizuku[j].note = augc->shizuku[j+1].note;
+                augc->shizuku[j].sound = augc->shizuku[j+1].sound;
+            }
+            augc->shizuku[j].angle = 0;
+            augc->shizuku[j].area = 0;
+            augc->shizuku[j].color[0] = 0;
+            augc->shizuku[j].color[1] = 0;
+            augc->shizuku[j].color[2] = 0;
+            augc->shizuku[j].distance = -1;
+            augc->shizuku[j].frameNum = 0;
+            augc->shizuku[j].ID = 0;
+            augc->shizuku[j].note = 0;
+            augc->shizuku[j].sound = NULL;
+        }
+    }
     return 0;
 }
 
@@ -601,8 +632,128 @@ int user_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int routo_handler(const char *path, const char *types, lo_arg **argv, int argc,
                  void *data, void *user_data)
 {
-    
+    AUGraphController *augc = (AUGraphController *)user_data;
+    [augc loadSpeechTrack:44100.0 kobin:argv[0]->i];
     return 0;
 }
+/*
+-(OSStatus) SetupAUHAL
+{
+	OSStatus err = noErr;
+    
+    AudioComponent comp;
+    AudioComponentDescription desc;
+	
+	//There are several different types of Audio Units.
+	//Some audio units serve as Outputs, Mixers, or DSP
+	//units. See AUComponent.h for listing
+	desc.componentType = kAudioUnitType_Output;
+	
+	//Every Component has a subType, which will give a clearer picture
+	//of what this components function will be.
+	desc.componentSubType = kAudioUnitSubType_HALOutput;
+	
+	//all Audio Units in AUComponent.h must use 
+	//"kAudioUnitManufacturer_Apple" as the Manufacturer
+	desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+	desc.componentFlags = 0;
+	desc.componentFlagsMask = 0;
+	
+	//Finds a component that meets the desc spec's
+    comp = AudioComponentFindNext(NULL, &desc);
+	if (comp == NULL) exit (-1);
+	
+	//gains access to the services provided by the component
+    err = AudioComponentInstanceNew(comp, &mInputUnit);
+    checkErr(err);
+    
+	//AUHAL needs to be initialized before anything is done to it
+	err = AudioUnitInitialize(mInputUnit);
+	checkErr(err);
+	
+	err = [self EnableIO];
+	checkErr(err);
+	
+	err = [self CallbackSetup];
+	checkErr(err);
+	
+	//Don't setup buffers until you know what the 
+	//input and output device audio streams look like.
+    
+	err = AudioUnitInitialize(mInputUnit);
+    
+	return err;
+}
 
+-(OSStatus) EnableIO
+{	
+	OSStatus err = noErr;
+	UInt32 enableIO;
+	
+	///////////////
+	//ENABLE IO (INPUT)
+	//You must enable the Audio Unit (AUHAL) for input and disable output 
+	//BEFORE setting the AUHAL's current device.
+	
+	//Enable input on the AUHAL
+	enableIO = 1;
+	err =  AudioUnitSetProperty(mInputUnit,
+								kAudioOutputUnitProperty_EnableIO,
+								kAudioUnitScope_Input,
+								1, // input element
+								&enableIO,
+								sizeof(enableIO));
+	checkErr(err);
+	
+	//disable Output on the AUHAL
+	enableIO = 0;
+	err = AudioUnitSetProperty(mInputUnit,
+                               kAudioOutputUnitProperty_EnableIO,
+                               kAudioUnitScope_Output,
+                               0,   //output element
+                               &enableIO,
+                               sizeof(enableIO));
+	return err;
+}
+
+static OSStatus InputProc(void *inRefCon,
+                          AudioUnitRenderActionFlags *ioActionFlags,
+                          const AudioTimeStamp *inTimeStamp,
+                          UInt32 inBusNumber,
+                          UInt32 inNumberFrames,
+                          AudioBufferList * ioData)
+{
+    OSStatus err = noErr;
+    AUGraphController *augc = (AUGraphController *)inRefCon;
+	//Get the new audio data
+	err = AudioUnitRender(augc->mInputUnit,
+                          ioActionFlags,
+                          inTimeStamp, 
+                          inBusNumber,     
+                          inNumberFrames, //# of frames requested
+                          augc->mInputBuffer);// Audio Buffer List to hold data
+	checkErr(err);
+    
+	return err;
+}
+
+-(OSStatus) CallbackSetup
+{
+	OSStatus err = noErr;
+    AURenderCallbackStruct input;
+	
+    input.inputProc = InputProc;
+    input.inputProcRefCon = self;
+	
+	//Setup the input callback. 
+	err = AudioUnitSetProperty(mInputUnit, 
+                               kAudioOutputUnitProperty_SetInputCallback, 
+                               kAudioUnitScope_Global,
+                               0,
+                               &input, 
+                               sizeof(input));
+	checkErr(err);
+	return err;
+}
+*/
 @end

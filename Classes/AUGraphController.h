@@ -60,7 +60,17 @@
 #define NUMFILES 1
 #define MAXTIMES 350
 #define MAXSNDS  4
-#define MAXSZKS  5
+#define MAXSZKS  50
+#define checkErr( err) \
+if(err) {\
+OSStatus error = static_cast<OSStatus>(err);\
+fprintf(stdout, "CAPlayThrough Error: %ld ->  %s:  %d\n",  (long)error,\
+__FILE__, \
+__LINE__\
+);\
+fflush(stdout);\
+return err; \
+} 
 
 typedef struct {
 	UInt32 numFrames;
@@ -91,19 +101,20 @@ typedef struct {
 
 @interface AUGraphController : NSObject
 {
-    CFURLRef sourceURL;
+    CFURLRef sourceURL[MAXSNDS];
     
 	AUGraph   mGraph;
     AudioUnit mTimeAU[MAXSZKS];
 	AudioUnit mMixer;
-    
+    AudioUnit mInputUnit;
     CAStreamBasicDescription mClientFormat;
     CAStreamBasicDescription mOutputFormat;
     
     SourceAudioBufferData mUserData[MAXSNDS];
-    
+    AudioBufferList *mInputBuffer;
     UInt32 time, numShizuku;
-    TimerInfo *timer;
+    UInt64 cnt;
+    UInt32 resolution;
     Shizuku shizuku[MAXSZKS];
     lo_server_thread    st;
 }
@@ -115,9 +126,8 @@ typedef struct {
 - (void)setOutputVolume:(AudioUnitParameterValue)value;
 - (void)setTimeRate:(UInt32)inputNum value:(AudioUnitParameterValue)value;
 - (Float32)getMeterLevel;
-
 - (void)runAUGraph;
-
+- (void)timer:(UInt64)sampleTime;
 - (void)setUplo;
 
 @end
