@@ -58,9 +58,13 @@
 
 #define MAXBUFS  1
 #define NUMFILES 1
-#define MAXTIMES 350
-#define MAXSNDS  4
+#define MAXTIMES 360
+#define MAXSNDS  3
+#define BIN      4
 #define MAXSZKS  50
+#define WN       MAXSZKS-1
+#define METRO    MAXSZKS
+
 #define checkErr( err) \
 if(err) {\
 OSStatus error = static_cast<OSStatus>(err);\
@@ -79,7 +83,7 @@ typedef struct {
 } SoundBuffer, *SoundBufferPtr;
 
 typedef struct {
-    UInt32 maxNumFrames;
+    UInt32      maxNumFrames;
     SoundBuffer soundBuffer[MAXBUFS];
 } SourceAudioBufferData, *SourceAudioBufferDataPtr;
 
@@ -87,11 +91,13 @@ typedef struct {
     SInt32  angle;
     UInt32  area;
     UInt32  color[3];//[0]:R, [1]:G, [2]:B
-    UInt32  distance;
+    SInt32  distance;
     UInt32  frameNum;
-    UInt32  ID;
+    SInt32  ID;
     UInt32  note;
+    UInt32  isAlive;
     SourceAudioBufferDataPtr    sound;
+    SInt32                      sn;
 } Shizuku;
 
 typedef struct {
@@ -101,21 +107,30 @@ typedef struct {
 
 @interface AUGraphController : NSObject
 {
-    CFURLRef sourceURL[MAXSNDS];
+    CFURLRef sourceURL;
     
 	AUGraph   mGraph;
     AudioUnit mTimeAU[MAXSZKS];
 	AudioUnit mMixer;
-    AudioUnit mInputUnit;
+    AudioUnit filterAU[MAXSZKS];
+    AudioUnit vari_metroAU;
+    AudioUnit reverbAU;
+
+    
     CAStreamBasicDescription mClientFormat;
     CAStreamBasicDescription mOutputFormat;
     
-    SourceAudioBufferData mUserData[MAXSNDS];
+    SourceAudioBufferData mUserData[MAXSNDS][BIN];
+    SourceAudioBufferData metro;
+    SourceAudioBufferData wn;
+
     AudioBufferList *mInputBuffer;
-    UInt32 time, numShizuku;
+    UInt32 time, numShizuku, binCnt[BIN];
     UInt64 cnt;
     UInt32 resolution;
+    BOOL    metroON;
     Shizuku shizuku[MAXSZKS];
+    Shizuku s_metro, s_wn;
     lo_server_thread    st;
 }
 
@@ -129,5 +144,12 @@ typedef struct {
 - (void)runAUGraph;
 - (void)timer:(UInt64)sampleTime;
 - (void)setUplo;
-
+- (void)toggleMetro;
+- (void)toggleWN;
+- (void)setRGB:(UInt32)n;
+- (void)setR:(AudioUnitParameterValue)n;
+- (void)setG:(AudioUnitParameterValue)n;
+- (void)setB:(AudioUnitParameterValue)n;
+- (void)setAngle:(UInt32)n;
+- (void)setReverb:(AudioUnitParameterValue)n;
 @end

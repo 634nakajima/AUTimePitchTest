@@ -50,8 +50,6 @@
 
 @interface MyViewController : NSObject
 {
-    IBOutlet NSButton   *bus0Switch;
-    IBOutlet NSSlider   *bus0VolumeSlider;
     IBOutlet NSSlider   *outputVolumeSlider;
     IBOutlet NSLevelIndicator *levelIndicator;
     
@@ -65,18 +63,19 @@
     AUGraphController *graphController;
 }
 
-@property (readonly, nonatomic) NSButton *bus0Switch;
-@property (readonly, nonatomic) NSSlider *bus0VolumeSlider;
 @property (readonly, nonatomic) NSSlider *outputVolumeSlider;
 @property (readonly, nonatomic) AUGraphController *graphController;
 
 - (void)setUIDefaults;
 - (void)toggleTimer;
 
-- (IBAction)enableInput:(NSButton *)sender;
-- (IBAction)setInputVolume:(NSSlider *)sender;
 - (IBAction)setOutputVolume:(NSSlider *)sender;
-- (IBAction)setTimeRate:(NSSlider *)sender;
 - (IBAction)buttonPressedAction:(NSButton *)sender;
+- (IBAction)toggleMetro:(id)sender;
+- (IBAction)toggleWN:(id)sender;
+- (IBAction)setR:(NSSlider *)sender;
+- (IBAction)setG:(NSSlider *)sender;
+- (IBAction)setB:(NSSlider *)sender;
+- (IBAction)setReverb:(NSSlider *)sender;
 
 @end

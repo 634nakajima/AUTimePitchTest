@@ -75,13 +75,13 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     Shizuku *shizuku = (Shizuku *)inRefCon;
 
     if (shizuku->note && shizuku->sound) {
-        //NSLog(@"shizuku:%d",shizuku->distance);
-
         AudioSampleType *in = shizuku->sound->soundBuffer[inBusNumber].data;
         AudioSampleType *out = (AudioSampleType *)ioData->mBuffers[0].mData;
     
         UInt32 sample = shizuku->frameNum * shizuku->sound->soundBuffer[inBusNumber].asbd.mChannelsPerFrame;
-    
+        if (shizuku->ID == 0) {
+            ;
+        }
         // make sure we don't attempt to render more data than we have available in the source buffer
         if ((shizuku->frameNum + inNumberFrames) > shizuku->sound->soundBuffer[inBusNumber].numFrames) {
             UInt32 offset = (shizuku->frameNum + inNumberFrames) - shizuku->sound->soundBuffer[inBusNumber].numFrames;
@@ -102,13 +102,12 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku->frameNum += inNumberFrames;
         if (shizuku->frameNum >= shizuku->sound->maxNumFrames) {
             shizuku->frameNum = 0;
-            shizuku->note = 0;
+            shizuku->isAlive = false;
+            if (shizuku->ID != -2) shizuku->note = 0;//WhiteNoise(ID:-2) -> Loop
         }
     } else {
         SilenceData(ioData);
-    }
-    //printf("render input bus %u sample %u\n", inBusNumber, sample);
-    
+    }    
     return noErr;
 }
 
@@ -128,8 +127,13 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     
     DisposeAUGraph(mGraph);
     
-    free(mUserData[0].soundBuffer[0].data);
-    
+    // free the mSoundBuffer struct
+    for (int i=0; i<BIN; i++) {
+        for (int j=0; j<MAXSNDS; j++) {
+            if (mUserData[j][i].soundBuffer[0].data != NULL) free(mUserData[j][i].soundBuffer[0].data);
+        }
+    }
+
     CFRelease(sourceURL);
     
 	[super dealloc];
@@ -137,34 +141,6 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 
 - (void)awakeFromNib
 {
-    for(int i=0; i<MAXSZKS; i++) {
-        shizuku[i].angle = 0;
-        shizuku[i].area = 0;
-        shizuku[i].color[0] = 0;
-        shizuku[i].color[1] = 0;
-        shizuku[i].color[2] = 0;
-        shizuku[i].distance = 7*i;
-        shizuku[i].frameNum = 0;
-        shizuku[i].ID = i;
-        shizuku[i].note = 0;
-        shizuku[i].sound = NULL;
-    }
-    time = 0;
-    numShizuku = 0;//MAXSZKS;
-    resolution = 441*2;
-    cnt = 1;
-    
-    printf("AUGraphController awakeFromNib\n");
-    
-    // clear the mSoundBuffer struct
-	memset(&mUserData[0].soundBuffer, 0, sizeof(mUserData[0].soundBuffer));
-    
-    // create the URL we'll use for source
-    
-    // AAC demo track
-
-
-    [self setUplo];
 }
 
 - (void)initializeAUGraph:(Float64)inSampleRate
@@ -172,12 +148,17 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     printf("initializeAUGraph\n");
     
     AUNode outputNode;
+    AUNode mixerNode;
     AUNode timePitchNode[MAXSZKS];
-	AUNode mixerNode;
     AUNode converterNode[MAXSZKS];
-    AudioUnit converterAU[MAXSZKS];
     AUNode filterNode[MAXSZKS];
-    AudioUnit filterAU[MAXSZKS];
+    AUNode vari_metroNode;
+    AUNode reverbNode;
+    AudioUnit converterAU[MAXSZKS];
+
+    AUNode con_metroNode;
+    AudioUnit con_metroAU;
+
 
     printf("create client format ASBD\n");
     
@@ -225,9 +206,10 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     // AU Converter
     CAComponentDescription converter_desc(kAudioUnitType_FormatConverter, kAudioUnitSubType_AUConverter, kAudioUnitManufacturer_Apple);
     
-    CAComponentDescription filter_desc(kAudioUnitType_Effect, kAudioUnitSubType_LowPassFilter, kAudioUnitManufacturer_Apple);
+    CAComponentDescription filter_desc(kAudioUnitType_Effect, kAudioUnitSubType_AUFilter, kAudioUnitManufacturer_Apple);
 
-    
+    CAComponentDescription reverb_desc(kAudioUnitType_Effect, kAudioUnitSubType_MatrixReverb, kAudioUnitManufacturer_Apple);
+
     printf("add nodes\n");
 
     // create a node in the graph that is an AudioUnit, using the supplied component description to find and open that unit
@@ -235,6 +217,15 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 	if (result) { printf("AUGraphNewNode 1 result %lu %4.4s\n", (unsigned long)result, (char *)&result); return; }
 
 	result = AUGraphAddNode(mGraph, &mixer_desc, &mixerNode);
+	if (result) { printf("AUGraphNewNode 3 result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+    
+    result = AUGraphAddNode(mGraph, &reverb_desc, &reverbNode);
+	if (result) { printf("AUGraphNewNode 3 result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+
+    result = AUGraphAddNode(mGraph, &converter_desc, &con_metroNode);
+	if (result) { printf("AUGraphNewNode 3 result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+    
+    result = AUGraphAddNode(mGraph, &timePitch_desc, &vari_metroNode);
 	if (result) { printf("AUGraphNewNode 3 result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
     
     // connect a node's output to a node's input
@@ -261,7 +252,16 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (result) { printf("AUGraphConnectNodeInput2 result %lu %4.4s %d\n", (unsigned long)result, (char*)&result, i); return; }
     }
    
-    result = AUGraphConnectNodeInput(mGraph, mixerNode, 0, outputNode, 0);
+    result = AUGraphConnectNodeInput(mGraph, mixerNode, 0, reverbNode, 0);
+    if (result) { printf("AUGraphConnectNodeInput result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+    
+    result = AUGraphConnectNodeInput(mGraph, reverbNode, 0, outputNode, 0);
+    if (result) { printf("AUGraphConnectNodeInput result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+
+    result = AUGraphConnectNodeInput(mGraph, con_metroNode, 0, vari_metroNode, 0);
+    if (result) { printf("AUGraphConnectNodeInput result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
+
+    result = AUGraphConnectNodeInput(mGraph, vari_metroNode, 0, mixerNode, MAXSZKS);
     if (result) { printf("AUGraphConnectNodeInput result %lu %4.4s\n", (unsigned long)result, (char*)&result); return; }
     
     // open the graph -- AudioUnits are open but not initialized (no resource allocation occurs here)
@@ -284,8 +284,17 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 	result = AUGraphNodeInfo(mGraph, mixerNode, NULL, &mMixer);
     if (result) { printf("AUGraphNodeInfo result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
+    result = AUGraphNodeInfo(mGraph, reverbNode, NULL, &reverbAU);
+    if (result) { printf("AUGraphNodeInfo result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+
+    result = AUGraphNodeInfo(mGraph, con_metroNode, NULL, &con_metroAU);
+    if (result) { printf("AUGraphNodeInfo result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    result = AUGraphNodeInfo(mGraph, vari_metroNode, NULL, &vari_metroAU);
+    if (result) { printf("AUGraphNodeInfo result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
     // set bus count
-	UInt32 numbuses = MAXSZKS;
+	UInt32 numbuses = MAXSZKS+1;//+1 -> metro
 	
     printf("set input bus count %lu\n", (unsigned long)numbuses);
 	
@@ -297,10 +306,10 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     
     printf("enable metering for input bus 0\n");
     
-    result = AudioUnitSetProperty(mMixer, kAudioUnitProperty_MeteringMode, kAudioUnitScope_Input, 0, &onValue, sizeof(onValue));
+    result = AudioUnitSetProperty(mMixer, kAudioUnitProperty_MeteringMode, kAudioUnitScope_Output, 0, &onValue, sizeof(onValue));
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
-    for (int i=0; i<MAXSZKS; i++) {
+    for (int i=0; i<WN; i++) {
         // setup render callback struct
         AURenderCallbackStruct rcbs;
         rcbs.inputProc = &renderInput;
@@ -313,9 +322,23 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     }
     
+    AURenderCallbackStruct rcbs;
+    rcbs.inputProc = &renderInput;
+    rcbs.inputProcRefCon = &s_metro;
+    
+    printf("set AUGraphSetNodeInputCallback\n");
+    
+    // set a callback for the specified node's specified input bus (bus 1)
+    result = AUGraphSetNodeInputCallback(mGraph, con_metroNode, 0, &rcbs);
+    if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
     result = AUGraphAddRenderNotify(mGraph, renderNotify, self);
     if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 
+    rcbs.inputProcRefCon = &s_wn;
+    
+    result = AUGraphSetNodeInputCallback(mGraph, converterNode[WN], 0, &rcbs);
+    if (result) { printf("AUGraphSetNodeInputCallback result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
     printf("set converter input bus %d client kAudioUnitProperty_StreamFormat\n", 0);
     
@@ -345,22 +368,33 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (result) { printf("AudioUnitSetProperty1 result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 
         [self enableInput:i isOn:1.0];
-        [self setInputVolume:i value:0.5];
-        [self setTimeRate:i value:-600+50*i];
-        
-        result = AudioUnitSetParameter(filterAU[i], kLowPassParam_CutoffFrequency, kAudioUnitScope_Global, 0, 15000 - 200*i, 0);
-        if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+        [self setInputVolume:i value:0.5];        
     }
 
     // set the output stream format of the mixer
     result = AudioUnitSetProperty(mMixer, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &mOutputFormat, sizeof(mOutputFormat));
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+
+    result = AudioUnitSetProperty(con_metroAU, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &mClientFormat, sizeof(mClientFormat));
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
-    result = AudioUnitSetProperty(mInputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &mOutputFormat, sizeof(mOutputFormat));
+    // set the output stream format of the converter
+    result = AudioUnitSetProperty(con_metroAU, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &mOutputFormat, sizeof(mOutputFormat));
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+
+    // set the output stream format of the converter
+    result = AudioUnitSetProperty(vari_metroAU, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &mOutputFormat, sizeof(mOutputFormat));
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    [self enableInput:METRO isOn:1.0];
+    [self setInputVolume:METRO value:0.1];
+    
+    result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 1200, 0);
+    if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
     //printf("set timepitch output kAudioUnitProperty_StreamFormat\n");
     
 
-    //}
     printf("AUGraphInitialize\n");
 								
     // now that we've set everything up we can initialize the graph, this will also validate the connections
@@ -368,45 +402,47 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     if (result) { printf("AUGraphInitialize result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
     CAShow(mGraph);
-    
+    [self initShizuku];
 
 }
 
 // load up audio data from the demo file into mSoundBuffer.data which is then used in the render proc as the source data to render
 - (void)loadSpeechTrack:(Float64)inGraphSampleRate kobin:(UInt32)kID
 {
-    mUserData[kID].maxNumFrames = 0;
+    mUserData[binCnt[kID]][kID].maxNumFrames = 0;
         
-    printf("loadSpeechTrack, %d\n", 1);
+    printf("loadSpeechTrack, %d\n", kID);
     
     ExtAudioFileRef xafref = 0;
     NSString *source;
     switch (kID) {
-        case 1:
-            source = [[NSBundle mainBundle] pathForResource:@"Kobin1" ofType:@"aif"];
+        case 0:
+            source = [[NSBundle mainBundle] pathForResource:@"kobin1" ofType:@"aiff"];
             break;
             
+        case 1:
+            source = [[NSBundle mainBundle] pathForResource:@"kobin2" ofType:@"aiff"];
+            break;
+
         case 2:
-            source = [[NSBundle mainBundle] pathForResource:@"Kobin2" ofType:@"aif"];
+            source = [[NSBundle mainBundle] pathForResource:@"kobin3" ofType:@"aiff"];
             break;
 
         case 3:
-            source = [[NSBundle mainBundle] pathForResource:@"Kobin3" ofType:@"aif"];
-            break;
-
-        case 4:
-            source = [[NSBundle mainBundle] pathForResource:@"Kobin4" ofType:@"aif"];
+            source = [[NSBundle mainBundle] pathForResource:@"kobin4" ofType:@"aiff"];
             break;
             
         default:
             return;
             break;
     }
+    NSLog(@"source:%@",source);
+    if(!source) return;
 
-    sourceURL[kID] = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
+    sourceURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
     
     // open one of the two source files
-    OSStatus result = ExtAudioFileOpenURL(sourceURL[kID], &xafref);
+    OSStatus result = ExtAudioFileOpenURL(sourceURL, &xafref);
     if (result || !xafref) { printf("ExtAudioFileOpenURL result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     
     // get the file data format, this represents the file's actual data format, we need to know the actual source sample rate
@@ -435,17 +471,18 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     if (result) { printf("ExtAudioFileSetProperty kExtAudioFileProperty_ClientDataFormat %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 
     // set up and allocate memory for the source buffer
-    mUserData[kID].soundBuffer[0].numFrames = numFrames;
-    mUserData[kID].soundBuffer[0].asbd = mClientFormat;
+    mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames = numFrames;
+    mUserData[binCnt[kID]][kID].soundBuffer[0].asbd = mClientFormat;
 
-    UInt32 samples = numFrames * mUserData[0].soundBuffer[0].asbd.mChannelsPerFrame;
-    mUserData[kID].soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
+    UInt32 samples = numFrames * mUserData[binCnt[kID]][kID].soundBuffer[0].asbd.mChannelsPerFrame;
+    if (mUserData[binCnt[kID]][kID].soundBuffer[0].data != NULL) free(mUserData[binCnt[kID]][kID].soundBuffer[0].data);
+    mUserData[binCnt[kID]][kID].soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
     
     // set up a AudioBufferList to read data into
     AudioBufferList bufList;
     bufList.mNumberBuffers = 1;
-    bufList.mBuffers[0].mNumberChannels = mUserData[kID].soundBuffer[0].asbd.mChannelsPerFrame;
-    bufList.mBuffers[0].mData = mUserData[kID].soundBuffer[0].data;
+    bufList.mBuffers[0].mNumberChannels = mUserData[binCnt[kID]][kID].soundBuffer[0].asbd.mChannelsPerFrame;
+    bufList.mBuffers[0].mData = mUserData[binCnt[kID]][kID].soundBuffer[0].data;
     bufList.mBuffers[0].mDataByteSize = samples * sizeof(AudioSampleType);
 
     // perform a synchronous sequential read of the audio data out of the file into our allocated data buffer
@@ -453,17 +490,169 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     result = ExtAudioFileRead(xafref, &numPackets, &bufList);
     if (result) {
         printf("ExtAudioFileRead result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); 
-        free(mUserData[kID].soundBuffer[0].data);
-        mUserData[kID].soundBuffer[0].data = 0;
+        free(mUserData[binCnt[kID]][kID].soundBuffer[0].data);
+        mUserData[binCnt[kID]][kID].soundBuffer[0].data = 0;
         return;
     }
     
     // update after the read to reflect the real number of frames read into the buffer
     // note that ExtAudioFile will automatically trim the 2112 priming frames off the AAC demo source
-    mUserData[kID].soundBuffer[0].numFrames = numPackets;
+    mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames = numPackets;
     
     // maxNumFrames is used to know when we need to loop the source
-    mUserData[kID].maxNumFrames = mUserData[kID].soundBuffer[0].numFrames;
+    mUserData[binCnt[kID]][kID].maxNumFrames = mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames;
+    
+    // close the file and dispose the ExtAudioFileRef
+    ExtAudioFileDispose(xafref);
+    binCnt[kID] = (binCnt[kID] < MAXSNDS ? binCnt[kID]+1 : 0);
+}
+
+- (void)loadMetro:(Float64)inGraphSampleRate
+{
+    
+    metro.maxNumFrames = 0;
+    
+    printf("loadMetro\n");
+    
+    ExtAudioFileRef xafref = 0;
+    
+    NSString *source = [[NSBundle mainBundle] pathForResource:@"metro" ofType:@"aiff"];
+    sourceURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
+    
+    // open one of the two source files
+    OSStatus result = ExtAudioFileOpenURL(sourceURL, &xafref);
+    if (result || !xafref) { printf("ExtAudioFileOpenURL result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // get the file data format, this represents the file's actual data format, we need to know the actual source sample rate
+    // note that the client format set on ExtAudioFile is the format of the date we really want back
+    CAStreamBasicDescription fileFormat;
+    UInt32 propSize = sizeof(fileFormat);
+    
+    result = ExtAudioFileGetProperty(xafref, kExtAudioFileProperty_FileDataFormat, &propSize, &fileFormat);
+    if (result) { printf("ExtAudioFileGetProperty kExtAudioFileProperty_FileDataFormat result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    printf("file %d, native file format\n", 1);
+    fileFormat.Print();
+    
+    // get the file's length in sample frames
+    UInt64 numFrames = 0;
+    propSize = sizeof(numFrames);
+    result = ExtAudioFileGetProperty(xafref, kExtAudioFileProperty_FileLengthFrames, &propSize, &numFrames);
+    if (result) { printf("ExtAudioFileGetProperty kExtAudioFileProperty_FileLengthFrames result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // account for any sample rate conversion between the file and client sample rates
+    double rateRatio = mClientFormat.mSampleRate / fileFormat.mSampleRate;
+    numFrames *= rateRatio;
+    
+    // set the client format to be what we want back -- this is the same format audio we're giving to the input callback
+    result = ExtAudioFileSetProperty(xafref, kExtAudioFileProperty_ClientDataFormat, sizeof(mClientFormat), &mClientFormat);
+    if (result) { printf("ExtAudioFileSetProperty kExtAudioFileProperty_ClientDataFormat %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // set up and allocate memory for the source buffer
+    metro.soundBuffer[0].numFrames = numFrames;
+    metro.soundBuffer[0].asbd = mClientFormat;
+    
+    UInt32 samples = numFrames * metro.soundBuffer[0].asbd.mChannelsPerFrame;
+    metro.soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
+    
+    // set up a AudioBufferList to read data into
+    AudioBufferList bufList;
+    bufList.mNumberBuffers = 1;
+    bufList.mBuffers[0].mNumberChannels = metro.soundBuffer[0].asbd.mChannelsPerFrame;
+    bufList.mBuffers[0].mData = metro.soundBuffer[0].data;
+    bufList.mBuffers[0].mDataByteSize = samples * sizeof(AudioSampleType);
+    
+    // perform a synchronous sequential read of the audio data out of the file into our allocated data buffer
+    UInt32 numPackets = numFrames;
+    result = ExtAudioFileRead(xafref, &numPackets, &bufList);
+    if (result) {
+        printf("ExtAudioFileRead result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); 
+        free(metro.soundBuffer[0].data);
+        metro.soundBuffer[0].data = 0;
+        return;
+    }
+    // update after the read to reflect the real number of frames read into the buffer
+    // note that ExtAudioFile will automatically trim the 2112 priming frames off the AAC demo source
+    metro.soundBuffer[0].numFrames = numPackets;
+    
+    // maxNumFrames is used to know when we need to loop the source
+    metro.maxNumFrames = metro.soundBuffer[0].numFrames;
+    
+    // close the file and dispose the ExtAudioFileRef
+    ExtAudioFileDispose(xafref);
+    
+}
+
+- (void)loadWN:(Float64)inGraphSampleRate
+{
+    
+    wn.maxNumFrames = 0;
+    
+    printf("loadWhiteNoise\n");
+    
+    ExtAudioFileRef xafref = 0;
+    
+    NSString *source = [[NSBundle mainBundle] pathForResource:@"WhiteNoise" ofType:@"aiff"];
+    sourceURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef)source, kCFURLPOSIXPathStyle, false);
+    
+    // open one of the two source files
+    OSStatus result = ExtAudioFileOpenURL(sourceURL, &xafref);
+    if (result || !xafref) { printf("ExtAudioFileOpenURL result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // get the file data format, this represents the file's actual data format, we need to know the actual source sample rate
+    // note that the client format set on ExtAudioFile is the format of the date we really want back
+    CAStreamBasicDescription fileFormat;
+    UInt32 propSize = sizeof(fileFormat);
+    
+    result = ExtAudioFileGetProperty(xafref, kExtAudioFileProperty_FileDataFormat, &propSize, &fileFormat);
+    if (result) { printf("ExtAudioFileGetProperty kExtAudioFileProperty_FileDataFormat result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    printf("file %d, native file format\n", 1);
+    fileFormat.Print();
+    
+    // get the file's length in sample frames
+    UInt64 numFrames = 0;
+    propSize = sizeof(numFrames);
+    result = ExtAudioFileGetProperty(xafref, kExtAudioFileProperty_FileLengthFrames, &propSize, &numFrames);
+    if (result) { printf("ExtAudioFileGetProperty kExtAudioFileProperty_FileLengthFrames result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // account for any sample rate conversion between the file and client sample rates
+    double rateRatio = mClientFormat.mSampleRate / fileFormat.mSampleRate;
+    numFrames *= rateRatio;
+    
+    // set the client format to be what we want back -- this is the same format audio we're giving to the input callback
+    result = ExtAudioFileSetProperty(xafref, kExtAudioFileProperty_ClientDataFormat, sizeof(mClientFormat), &mClientFormat);
+    if (result) { printf("ExtAudioFileSetProperty kExtAudioFileProperty_ClientDataFormat %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    // set up and allocate memory for the source buffer
+    wn.soundBuffer[0].numFrames = numFrames;
+    wn.soundBuffer[0].asbd = mClientFormat;
+    
+    UInt32 samples = numFrames * wn.soundBuffer[0].asbd.mChannelsPerFrame;
+    wn.soundBuffer[0].data = (AudioSampleType *)calloc(samples, sizeof(AudioSampleType));
+    
+    // set up a AudioBufferList to read data into
+    AudioBufferList bufList;
+    bufList.mNumberBuffers = 1;
+    bufList.mBuffers[0].mNumberChannels = wn.soundBuffer[0].asbd.mChannelsPerFrame;
+    bufList.mBuffers[0].mData = wn.soundBuffer[0].data;
+    bufList.mBuffers[0].mDataByteSize = samples * sizeof(AudioSampleType);
+    
+    // perform a synchronous sequential read of the audio data out of the file into our allocated data buffer
+    UInt32 numPackets = numFrames;
+    result = ExtAudioFileRead(xafref, &numPackets, &bufList);
+    if (result) {
+        printf("ExtAudioFileRead result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); 
+        free(wn.soundBuffer[0].data);
+        wn.soundBuffer[0].data = 0;
+        return;
+    }
+    // update after the read to reflect the real number of frames read into the buffer
+    // note that ExtAudioFile will automatically trim the 2112 priming frames off the AAC demo source
+    wn.soundBuffer[0].numFrames = numPackets;
+    
+    // maxNumFrames is used to know when we need to loop the source
+    wn.maxNumFrames = wn.soundBuffer[0].numFrames;
     
     // close the file and dispose the ExtAudioFileRef
     ExtAudioFileDispose(xafref);
@@ -502,9 +691,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 
 // sets the rate of the timepitch Audio Unit
 - (void)setTimeRate:(UInt32)inputNum value:(AudioUnitParameterValue)value
-{
-    printf("Set rate %f\n", value);
-    
+{    
     OSStatus result = AudioUnitSetParameter(mTimeAU[inputNum], kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, value, 0);
     if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 }
@@ -535,107 +722,415 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (result) { printf("AUGraphStop result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     } else {
         printf("PLAY\n");
-    
+        cnt = 1;
         result = AUGraphStart(mGraph);
         if (result) { printf("AUGraphStart result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
     }
 }
 
+- (void)initShizuku
+{
+    // clear the mSoundBuffer struct
+    for (int i=0; i<BIN; i++) {
+        for (int j=0; j<MAXSNDS; j++) {
+            memset(&mUserData[j][i].soundBuffer, 0, sizeof(mUserData[j][i].soundBuffer));
+            binCnt[j] = 0;
+        }
+    }
+    
+    [self loadMetro:44100.0];
+    [self loadWN:44100.0];
+    
+    for(int i=0; i<WN; i++) {
+        shizuku[i].angle = 0;
+        shizuku[i].area = 0;
+        shizuku[i].color[0] = 0;
+        shizuku[i].color[1] = 0;
+        shizuku[i].color[2] = 0;
+        shizuku[i].distance = -1;
+        shizuku[i].frameNum = 0;
+        shizuku[i].ID = i;
+        shizuku[i].note = 0;
+        shizuku[i].sound = NULL;
+        shizuku[i].isAlive = false;
+        shizuku[i].sn = -1;
+    }
+    
+    time = MAXTIMES-1;
+    numShizuku = 0;
+    resolution = 10;
+    cnt = 1;
+    
+    s_metro.angle = 0;
+    s_metro.area = 0;
+    s_metro.color[0] = 0;
+    s_metro.color[1] = 0;
+    s_metro.color[2] = 0;
+    s_metro.distance = 0;
+    s_metro.frameNum = 0;
+    s_metro.ID = -1;
+    s_metro.note = 0;
+    metroON = true;
+    
+    s_wn.angle = 0;
+    s_wn.area = 0;
+    s_wn.color[0] = 127;
+    s_wn.color[1] = 127;
+    s_wn.color[2] = 127;
+    s_wn.distance = 0;
+    s_wn.frameNum = 0;
+    s_wn.ID = -2;
+    s_wn.note = 0;
+    
+    printf("AUGraphController awakeFromNib\n");
+    
+    s_metro.sound = &metro;
+    s_wn.sound = &wn;
+    
+    [self setRGB:WN];
+    [self setReverb:50];
+    [self setUplo];
+
+    AudioUnitParameterValue value = 300.0;
+    AudioUnitSetParameter(filterAU[WN], kMultibandFilter_LowFrequency, kAudioUnitScope_Global, 0, value, 0);
+}
+
 - (void)timer:(UInt64)sampleTime
 {
-    if (sampleTime > resolution*cnt) {
+    if (sampleTime > (float)resolution * 44.1 * (float)cnt) {
         cnt++;
-        if(time++ == MAXTIMES) time = 0;
-    
-        for (UInt32 i=0; i<numShizuku; i++) {
+        if(++time == MAXTIMES) time = 0;
+        if (metroON) [self metroCheck:time];
+        for (UInt32 i=0; i<WN; i++) {
             if (shizuku[i].distance == time) {
                 shizuku[i].note = 1;
                 shizuku[i].frameNum = 0;
-                [self setTimeRate:i value:shizuku[i].angle*3];
+                if (shizuku[i].sound) printf("play %d\n",i);
+                else printf("err:play %d\n",i);
             }
         }
     }
 }
 
-- (void)setUplo
+- (void)metroCheck:(UInt32)t
 {
-    st = lo_server_thread_new("15000", NULL);
-    lo_server_thread_add_method(st, "/add", "iiiiiiii", shizuku_add, self);
-    lo_server_thread_add_method(st, "/delete", "iiiiiiii", shizuku_delete, self);
-    lo_server_thread_add_method(st, "/user", "iii", user_handler, self);
-    lo_server_thread_add_method(st, "/routo", "ii", routo_handler, self);
-    lo_server_thread_start(st);
+    if (t == 0) {
+        OSStatus result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 1200, 0);
+        if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+        s_metro.frameNum = 0;
+        s_metro.note = 1;
+    }
+    else if (t % (MAXTIMES/8) == 0) {
+
+        OSStatus result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 0, 0);
+        if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+        s_metro.frameNum = 0;
+        s_metro.note = 1;
+
+    }
+}
+
+Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
+    Float32 fR1 = (Float32)r1;
+    Float32 fR2 = (Float32)r2;
+    Float32 fAng = (Float32)ang1 - (Float32)ang2;
+
+    Float32 retVal = pow(fR1, 2.0) + pow(fR2, 2.0) - 2*fR1*fR2*cos(2*M_PI*fAng/360.0);
+    return sqrt(retVal);
+}
+
+- (void)updateDrop:(UInt32 )n dropData:(lo_arg **)dd;
+{ 
+    int sound       = dd[0]->i-1;
+    int distance    = dd[1]->i;
+    int area        = dd[2]->i;
+    int angle       = dd[3]->i;
+    int R           = dd[4]->i;
+    int G           = dd[5]->i;
+    int B           = dd[6]->i;
+    int sn          = -1;
+    
+    if (sound > -1) {
+        //新しい水滴は最新の音源を割り当てる
+        if (n == 0) {
+            sn = (binCnt[sound] > 0 ? binCnt[sound]-1 : 0);
+        
+        } else {//既存の水滴は更新
+        sn = shizuku[n].sn;
+        }
+
+        if (sn > -1) shizuku[n].sound = &mUserData[sn][sound];
+        else shizuku[n].sound = NULL;
+        
+    } else shizuku[n].sound = NULL;
+    
+    shizuku[n].distance     = distance;
+    shizuku[n].area         = area;
+    shizuku[n].angle        = angle;
+    shizuku[n].color[0]     = R;
+    shizuku[n].color[1]     = G;
+    shizuku[n].color[2]     = B;
+    shizuku[n].sn           = sn;
+    
+    [self setRGB:n];
+    [self setAngle:n];
+    
+    return;
+}
+
+- (int)serchIdenticalDrop:(lo_arg **)dd
+{
+    int     distance    = dd[1]->i;
+    int     angle       = dd[3]->i;
+    int     i           = 0;
+    Float32 th          = 10;
+    
+    while (calcDistance(shizuku[i].distance, distance, shizuku[i].angle, angle) > th) {
+        if (++i == WN) return -1;
+    }
+    
+    return i;
 }
 
 int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
                 void *data, void *user_data)
 {
-    NSLog(@"add!");
     AUGraphController   *augc = (AUGraphController *)user_data;
+    NSLog(@"%d,%d,%d,%d,%d,%d,%d,%d",
+          argv[0]->i,
+          argv[1]->i,
+          argv[2]->i,
+          argv[3]->i,
+          argv[4]->i,
+          argv[5]->i,
+          argv[6]->i,
+          argv[7]->i);
     
-    augc->shizuku[augc->numShizuku].ID          = argv[0]->i;
-    augc->shizuku[augc->numShizuku].sound       = &(augc->mUserData[argv[1]->i - 1]);
-    augc->shizuku[augc->numShizuku].distance    = argv[2]->i;
-    augc->shizuku[augc->numShizuku].area        = argv[3]->i;
-    augc->shizuku[augc->numShizuku].angle       = argv[4]->i;
-    augc->shizuku[augc->numShizuku].color[0]    = argv[5]->i;
-    augc->shizuku[augc->numShizuku].color[1]    = argv[6]->i;
-    augc->shizuku[augc->numShizuku].color[2]    = argv[7]->i;
+    UInt32 j;
+    for (j=WN-1; j>0; j--) {
+        augc->shizuku[j].angle      = augc->shizuku[j-1].angle;
+        augc->shizuku[j].area       = augc->shizuku[j-1].area;
+        augc->shizuku[j].color[0]   = augc->shizuku[j-1].color[0];
+        augc->shizuku[j].color[1]   = augc->shizuku[j-1].color[1];
+        augc->shizuku[j].color[2]   = augc->shizuku[j-1].color[2];
+        augc->shizuku[j].distance   = augc->shizuku[j-1].distance;
+        augc->shizuku[j].frameNum   = augc->shizuku[j-1].frameNum;
+        augc->shizuku[j].note       = augc->shizuku[j-1].note;
+        augc->shizuku[j].sound      = augc->shizuku[j-1].sound;
+        augc->shizuku[j].sn         = augc->shizuku[j-1].sn;
+
+        [augc setRGB:j];
+        [augc setAngle:j];
+    }
+
+    [augc updateDrop:0 dropData:argv];
+    augc->shizuku[j].frameNum   = 0;
+    augc->shizuku[j].note       = 0;
     
-    if (augc->numShizuku++ == 64) augc->numShizuku = 0;
+    if (++augc->numShizuku == WN) augc->numShizuku = WN-1;
+    NSLog(@"add! numShizuku:%d",augc->numShizuku);
+    return 0;
+}
+
+int shizuku_update(const char *path, const char *types, lo_arg **argv, int argc,
+                   void *data, void *user_data)
+{
+    AUGraphController   *augc = (AUGraphController *)user_data;
+
+    int s = [augc serchIdenticalDrop:argv];
+    
+    if (s == -1) {
+        UInt32 j;
+        for (j=WN-1; j>0; j--) {
+            augc->shizuku[j].angle      = augc->shizuku[j-1].angle;
+            augc->shizuku[j].area       = augc->shizuku[j-1].area;
+            augc->shizuku[j].color[0]   = augc->shizuku[j-1].color[0];
+            augc->shizuku[j].color[1]   = augc->shizuku[j-1].color[1];
+            augc->shizuku[j].color[2]   = augc->shizuku[j-1].color[2];
+            augc->shizuku[j].distance   = augc->shizuku[j-1].distance;
+            augc->shizuku[j].frameNum   = augc->shizuku[j-1].frameNum;
+            augc->shizuku[j].note       = augc->shizuku[j-1].note;
+            augc->shizuku[j].sound      = augc->shizuku[j-1].sound;
+            augc->shizuku[j].sn         = augc->shizuku[j-1].sn;
+
+            [augc setRGB:j];
+            [augc setAngle:j];
+        }
+
+        [augc updateDrop:0 dropData:argv];
+        augc->shizuku[j].frameNum   = 0;
+        augc->shizuku[j].note       = 0;
+        
+        if (++augc->numShizuku == WN) augc->numShizuku = WN-1;
+
+        printf("err:update\n");
+        return 0;
+    }
+    
+    [augc updateDrop:s dropData:argv];
+    printf("update!\n");
     return 0;
 }
 
 int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
                    void *data, void *user_data)
 {
-    NSLog(@"delete!");
     AUGraphController   *augc = (AUGraphController *)user_data;
+
+    int s = [augc serchIdenticalDrop:argv];
+    if (s == -1) {printf("err:delete\n"); return 0;}
     
-    for (UInt32 i=0; i<augc->numShizuku; i++) {
-        if ((int)augc->shizuku[i].ID == argv[0]->i) { 
-            UInt32 j;
-            for (j=i; j<augc->numShizuku-1; j++) {
-                augc->shizuku[j].angle =augc->shizuku[j+1].angle;
-                augc->shizuku[j].area =augc->shizuku[j+1].area;
-                augc->shizuku[j].color[0] = augc->shizuku[j+1].color[0];
-                augc->shizuku[j].color[1] = augc->shizuku[j+1].color[1];
-                augc->shizuku[j].color[2] = augc->shizuku[j+1].color[2];
-                augc->shizuku[j].distance = augc->shizuku[j+1].distance;
-                augc->shizuku[j].frameNum = augc->shizuku[j+1].frameNum;
-                augc->shizuku[j].ID = augc->shizuku[j+1].ID;
-                augc->shizuku[j].note = augc->shizuku[j+1].note;
-                augc->shizuku[j].sound = augc->shizuku[j+1].sound;
-            }
-            augc->shizuku[j].angle = 0;
-            augc->shizuku[j].area = 0;
-            augc->shizuku[j].color[0] = 0;
-            augc->shizuku[j].color[1] = 0;
-            augc->shizuku[j].color[2] = 0;
-            augc->shizuku[j].distance = -1;
-            augc->shizuku[j].frameNum = 0;
-            augc->shizuku[j].ID = 0;
-            augc->shizuku[j].note = 0;
-            augc->shizuku[j].sound = NULL;
-        }
+    UInt32 j;
+    for (j=s; j<WN-1; j++) {
+        augc->shizuku[j].angle      = augc->shizuku[j+1].angle;
+        augc->shizuku[j].area       = augc->shizuku[j+1].area;
+        augc->shizuku[j].color[0]   = augc->shizuku[j+1].color[0];
+        augc->shizuku[j].color[1]   = augc->shizuku[j+1].color[1];
+        augc->shizuku[j].color[2]   = augc->shizuku[j+1].color[2];
+        augc->shizuku[j].distance   = augc->shizuku[j+1].distance;
+        augc->shizuku[j].frameNum   = augc->shizuku[j+1].frameNum;
+        augc->shizuku[j].note       = augc->shizuku[j+1].note;
+        augc->shizuku[j].sound      = augc->shizuku[j+1].sound;
+        augc->shizuku[j].sn         = augc->shizuku[j+1].sn;
+
+        [augc setRGB:j];
+        [augc setAngle:j];
+        [augc setInputVolume:j value:(float)augc->shizuku[j].area/10.0];
     }
+    
+    augc->shizuku[j].angle      = 0;
+    augc->shizuku[j].area       = 0;
+    augc->shizuku[j].color[0]   = 0;
+    augc->shizuku[j].color[1]   = 0;
+    augc->shizuku[j].color[2]   = 0;
+    augc->shizuku[j].distance   = -1;
+    augc->shizuku[j].frameNum   = 0;
+    augc->shizuku[j].note       = 0;
+    augc->shizuku[j].sound      = NULL;
+    augc->shizuku[j].sn         = -1;
+    [augc setRGB:j];
+    [augc setAngle:j];
+    
+    augc->numShizuku--;
+    NSLog(@"delete! numShizuku:%d",augc->numShizuku);
     return 0;
 }
 
 int user_handler(const char *path, const char *types, lo_arg **argv, int argc,
-                  void *data, void *user_data)
+                 void *data, void *user_data)
 {
     
     return 0;
 }
 
 int routo_handler(const char *path, const char *types, lo_arg **argv, int argc,
-                 void *data, void *user_data)
+                  void *data, void *user_data)
 {
+    NSLog(@"routo");
     AUGraphController *augc = (AUGraphController *)user_data;
-    [augc loadSpeechTrack:44100.0 kobin:argv[0]->i];
+    [augc loadSpeechTrack:44100.0 kobin:argv[0]->i-1];
     return 0;
 }
+
+- (void)setUplo
+{
+    st = lo_server_thread_new("15000", NULL);
+    lo_server_thread_add_method(st, "/add", "iiiiiiiii", shizuku_add, self);
+    lo_server_thread_add_method(st, "/existed", "iiiiiiiii", shizuku_update, self);
+    lo_server_thread_add_method(st, "/delete", "iiiiiiiii", shizuku_delete, self);
+    lo_server_thread_add_method(st, "/user", "iii", user_handler, self);
+    lo_server_thread_add_method(st, "/routo", "i", routo_handler, self);
+    lo_server_thread_start(st);
+}
+
+- (void)toggleMetro
+{
+    if (metroON) metroON = false;
+    else metroON = true;
+}
+
+- (void)toggleWN
+{
+    if (s_wn.note) s_wn.note = false;
+    else s_wn.note = true;
+}
+
+- (void)setRGB:(UInt32)n
+{
+    AudioUnitParameterValue lg;
+    AudioUnitParameterValue c2;
+    AudioUnitParameterValue hg;
+    
+    if (n < WN) {
+        lg = ((float)shizuku[n].color[0]-255.0)*18.0/255.0;
+        c2 = ((float)shizuku[n].color[1]-255.0)*18.0/255.0;
+        hg = ((float)shizuku[n].color[2]-255.0)*18.0/255.0;
+    }else {
+        lg = ((float)s_wn.color[0]-255.0)*40.0/255.0;
+        c2 = ((float)s_wn.color[1]-255.0)*40.0/255.0;
+        hg = ((float)s_wn.color[2]-255.0)*40.0/255.0;
+    }
+    
+    AudioUnitParameterValue c1 = (lg+c2)/2.0;
+    AudioUnitParameterValue c3 = (hg+c2)/2.0;
+
+    OSStatus result = AudioUnitSetParameter(filterAU[n], kMultibandFilter_LowGain, kAudioUnitScope_Global, 0, lg, 0);
+    if (result) { printf("kMultibandFilter_LowGain result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    result = AudioUnitSetParameter(filterAU[n], kMultibandFilter_CenterGain1, kAudioUnitScope_Global, 0, c1, 0);
+    if (result) { printf("kMultibandFilter_CenterGain1 result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    result = AudioUnitSetParameter(filterAU[n], kMultibandFilter_CenterGain2, kAudioUnitScope_Global, 0, c2, 0);
+    if (result) { printf("kMultibandFilter_CenterGain2 result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    result = AudioUnitSetParameter(filterAU[n], kMultibandFilter_CenterGain3, kAudioUnitScope_Global, 0, c3, 0);
+    if (result) { printf("kMultibandFilter_CenterGain3 result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    result = AudioUnitSetParameter(filterAU[n], kMultibandFilter_HighGain, kAudioUnitScope_Global, 0, hg, 0);
+    if (result) { printf("kMultibandFilter_HighGain result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+    //printf("filter gain:%.1f %.1f %.1f %.1f %.1f\n",lg, c1, c2, c3, hg);
+}
+
+- (void)setR:(AudioUnitParameterValue)n
+{
+    s_wn.color[0] = n;
+}
+- (void)setG:(AudioUnitParameterValue)n
+{
+    s_wn.color[1] = n;
+}
+- (void)setB:(AudioUnitParameterValue)n
+{
+    s_wn.color[2] = n;
+}
+
+- (void)setAngle:(UInt32)n
+{
+    AudioUnitParameterValue cent;
+    cent = ((float)shizuku[n].angle-180.0)*20.0/3.0;
+    
+    OSStatus result = AudioUnitSetParameter(mTimeAU[n], kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, cent, 0);
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+}
+
+- (void)setArea:(UInt32)n
+{
+    AudioUnitParameterValue volume;
+    volume = (float)shizuku[n].area/10.0;
+    
+    OSStatus result = AudioUnitSetParameter(mTimeAU[n], kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, volume, 0);
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+}
+
+- (void)setReverb:(AudioUnitParameterValue)n//0<n<100 
+{    
+
+    OSStatus result = AudioUnitSetParameter(reverbAU, kReverbParam_DryWetMix, kAudioUnitScope_Global, 0, n, 0);
+    if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    
+}
+
 /*
 -(OSStatus) SetupAUHAL
 {

@@ -49,7 +49,7 @@
 
 @implementation MyViewController
 
-@synthesize bus0Switch, bus0VolumeSlider, outputVolumeSlider, graphController;
+@synthesize outputVolumeSlider, graphController;
 
 #pragma mark-
 
@@ -77,10 +77,7 @@
 // set the au values according to the UI state
 - (void)setUIDefaults
 {
-    [self enableInput:bus0Switch];
-    [self setInputVolume:bus0VolumeSlider];
     [self setOutputVolume:outputVolumeSlider];
-    //[graphController setTimeRate:1.0];
     oldValue = 1.0;
 }
 
@@ -114,25 +111,6 @@
 
 #pragma mark- Actions
 
-// handle input on/off switch action
-- (IBAction)enableInput:(NSButton *)sender
-{
-    UInt32 inputNum = [sender tag];
-    AudioUnitParameterValue isOn = (AudioUnitParameterValue)sender.intValue;
-                                    
-    [graphController enableInput:inputNum isOn:isOn];
-    [self toggleTimer];
-}
-
-// handle input volume changes
-- (IBAction)setInputVolume:(NSSlider *)sender
-{
-	UInt32 inputNum = [sender tag];
-    AudioUnitParameterValue value = sender.floatValue;
-    
-    [graphController setInputVolume:inputNum value:value];
-}
-
 // handle output volume changes
 - (IBAction)setOutputVolume:(NSSlider *)sender
 {
@@ -162,6 +140,42 @@
 {
     [graphController runAUGraph];
     [self toggleTimer];
+}
+
+- (IBAction)toggleMetro:(id)sender
+{
+    [graphController toggleMetro];
+}
+- (IBAction)toggleWN:(id)sender
+{
+    [graphController toggleWN];
+}
+
+- (IBAction)setR:(NSSlider *)sender
+{
+    AudioUnitParameterValue value = sender.floatValue;
+    [graphController setR:value];
+    [graphController setRGB:WN];
+}
+
+- (IBAction)setG:(NSSlider *)sender
+{
+    AudioUnitParameterValue value = sender.floatValue;
+    [graphController setG:value];
+    [graphController setRGB:WN];
+}
+
+- (IBAction)setB:(NSSlider *)sender
+{
+    AudioUnitParameterValue value = sender.floatValue;
+    [graphController setB:value];
+    [graphController setRGB:WN];
+}
+
+- (IBAction)setReverb:(NSSlider *)sender
+{
+    AudioUnitParameterValue value = sender.floatValue;
+    [graphController setReverb:value];
 }
 
 @end

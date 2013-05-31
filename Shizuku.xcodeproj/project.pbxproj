@@ -20,6 +20,8 @@
 		2B7EF40C123AD9A500D6ED22 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B7EF40B123AD9A500D6ED22 /* AudioToolbox.framework */; };
 		2B7EF410123AD9BA00D6ED22 /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B7EF40F123AD9BA00D6ED22 /* AudioUnit.framework */; };
 		2B7EF458123ADBE300D6ED22 /* SpeechTrack.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 2B7EF457123ADBE300D6ED22 /* SpeechTrack.mp4 */; };
+		5A0794EC17438D19007776C7 /* WhiteNoise.aiff in Resources */ = {isa = PBXBuildFile; fileRef = 5A0794EB17438D19007776C7 /* WhiteNoise.aiff */; };
+		5A6457A217425F3A00E4EFD1 /* metro.aiff in Resources */ = {isa = PBXBuildFile; fileRef = 5A6457A117425F3A00E4EFD1 /* metro.aiff */; };
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		EB8554CA173631220070DD86 /* liblo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EB8554C9173631220070DD86 /* liblo.a */; };
@@ -29,7 +31,7 @@
 /* Begin PBXFileReference section */
 		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
 		1DDD58150DA1D0A300B32029 /* English */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = English; path = English.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		256AC3F00F4B6AF500CF3369 /* AUTimePitchTest_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AUTimePitchTest_Prefix.pch; sourceTree = "<group>"; };
+		256AC3F00F4B6AF500CF3369 /* Shizuku_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Shizuku_Prefix.pch; sourceTree = "<group>"; };
 		29B97316FDCFA39411CA2CEA /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		29B97324FDCFA39411CA2CEA /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
@@ -53,8 +55,10 @@
 		2B7EF40B123AD9A500D6ED22 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		2B7EF40F123AD9BA00D6ED22 /* AudioUnit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioUnit.framework; path = System/Library/Frameworks/AudioUnit.framework; sourceTree = SDKROOT; };
 		2B7EF457123ADBE300D6ED22 /* SpeechTrack.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SpeechTrack.mp4; sourceTree = "<group>"; };
-		8D1107310486CEB800E47090 /* AUTimePitchTest-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "AUTimePitchTest-Info.plist"; sourceTree = "<group>"; };
-		8D1107320486CEB800E47090 /* AUTimePitchTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AUTimePitchTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0794EB17438D19007776C7 /* WhiteNoise.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = WhiteNoise.aiff; sourceTree = "<group>"; };
+		5A6457A117425F3A00E4EFD1 /* metro.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = metro.aiff; sourceTree = "<group>"; };
+		8D1107310486CEB800E47090 /* Shizuku-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Shizuku-Info.plist"; sourceTree = "<group>"; };
+		8D1107320486CEB800E47090 /* Shizuku.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shizuku.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB8554BF173631220070DD86 /* lo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lo.h; sourceTree = "<group>"; };
 		EB8554C0173631220070DD86 /* lo_endian.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lo_endian.h; sourceTree = "<group>"; };
 		EB8554C1173631220070DD86 /* lo_errors.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lo_errors.h; sourceTree = "<group>"; };
@@ -122,7 +126,7 @@
 		19C28FACFE9D520D11CA2CBB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8D1107320486CEB800E47090 /* AUTimePitchTest.app */,
+				8D1107320486CEB800E47090 /* Shizuku.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -144,7 +148,7 @@
 		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
 			isa = PBXGroup;
 			children = (
-				256AC3F00F4B6AF500CF3369 /* AUTimePitchTest_Prefix.pch */,
+				256AC3F00F4B6AF500CF3369 /* Shizuku_Prefix.pch */,
 				29B97316FDCFA39411CA2CEA /* main.m */,
 			);
 			name = "Other Sources";
@@ -153,11 +157,13 @@
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				5A0794EB17438D19007776C7 /* WhiteNoise.aiff */,
+				5A6457A117425F3A00E4EFD1 /* metro.aiff */,
 				EB8554CB1737B73D0070DD86 /* A.aif */,
 				1DDD58140DA1D0A300B32029 /* MainMenu.xib */,
 				2B14F145124AA3A8001DB7FB /* tick.aiff */,
 				2B7EF457123ADBE300D6ED22 /* SpeechTrack.mp4 */,
-				8D1107310486CEB800E47090 /* AUTimePitchTest-Info.plist */,
+				8D1107310486CEB800E47090 /* Shizuku-Info.plist */,
 				2B61B8EA125283FE00CA7C17 /* InfoPlist.strings */,
 			);
 			name = Resources;
@@ -207,9 +213,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8D1107260486CEB800E47090 /* AUTimePitchTest */ = {
+		8D1107260486CEB800E47090 /* Shizuku */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "AUTimePitchTest" */;
+			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Shizuku" */;
 			buildPhases = (
 				8D1107290486CEB800E47090 /* Resources */,
 				8D11072C0486CEB800E47090 /* Sources */,
@@ -219,10 +225,10 @@
 			);
 			dependencies = (
 			);
-			name = AUTimePitchTest;
+			name = Shizuku;
 			productInstallPath = "$(HOME)/Applications";
 			productName = AUTimePitchTest;
-			productReference = 8D1107320486CEB800E47090 /* AUTimePitchTest.app */;
+			productReference = 8D1107320486CEB800E47090 /* Shizuku.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -233,7 +239,7 @@
 			attributes = {
 				LastUpgradeCheck = 0440;
 			};
-			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "AUTimePitchTest" */;
+			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Shizuku" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 1;
@@ -247,7 +253,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8D1107260486CEB800E47090 /* AUTimePitchTest */,
+				8D1107260486CEB800E47090 /* Shizuku */,
 			);
 		};
 /* End PBXProject section */
@@ -262,6 +268,8 @@
 				2B14F146124AA3A8001DB7FB /* tick.aiff in Resources */,
 				2B61B8EC125283FE00CA7C17 /* InfoPlist.strings in Resources */,
 				EB8554CC1737B73D0070DD86 /* A.aif in Resources */,
+				5A6457A217425F3A00E4EFD1 /* metro.aiff in Resources */,
+				5A0794EC17438D19007776C7 /* WhiteNoise.aiff in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,16 +326,16 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = AUTimePitchTest_Prefix.pch;
+				GCC_PREFIX_HEADER = Shizuku_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = HAVE_POLL;
 				HEADER_SEARCH_PATHS = ./;
-				INFOPLIST_FILE = "AUTimePitchTest-Info.plist";
+				INFOPLIST_FILE = "Shizuku-Info.plist";
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
 				);
-				PRODUCT_NAME = AUTimePitchTest;
+				PRODUCT_NAME = Shizuku;
 			};
 			name = Debug;
 		};
@@ -343,16 +351,16 @@
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_MODEL_TUNING = G5;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = AUTimePitchTest_Prefix.pch;
+				GCC_PREFIX_HEADER = Shizuku_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = HAVE_POLL;
 				HEADER_SEARCH_PATHS = ./;
-				INFOPLIST_FILE = "AUTimePitchTest-Info.plist";
+				INFOPLIST_FILE = "Shizuku-Info.plist";
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
 				);
-				PRODUCT_NAME = AUTimePitchTest;
+				PRODUCT_NAME = Shizuku;
 			};
 			name = Release;
 		};
@@ -400,7 +408,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "AUTimePitchTest" */ = {
+		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Shizuku" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C01FCF4B08A954540054247B /* Debug */,
@@ -409,7 +417,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "AUTimePitchTest" */ = {
+		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Shizuku" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C01FCF4F08A954540054247B /* Debug */,
