@@ -125,7 +125,7 @@ typedef struct {
     SourceAudioBufferData wn;
 
     AudioBufferList *mInputBuffer;
-    UInt32 time, numShizuku, binCnt[BIN];
+    UInt32 time, numShizuku, binCnt[BIN], IDCnt;
     UInt64 cnt;
     UInt32 resolution;
     BOOL    metroON;
@@ -151,5 +151,6 @@ typedef struct {
 - (void)setG:(AudioUnitParameterValue)n;
 - (void)setB:(AudioUnitParameterValue)n;
 - (void)setAngle:(UInt32)n;
+- (void)setArea:(UInt32)n;
 - (void)setReverb:(AudioUnitParameterValue)n;
 @end

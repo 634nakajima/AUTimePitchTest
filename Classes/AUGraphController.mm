@@ -79,9 +79,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         AudioSampleType *out = (AudioSampleType *)ioData->mBuffers[0].mData;
     
         UInt32 sample = shizuku->frameNum * shizuku->sound->soundBuffer[inBusNumber].asbd.mChannelsPerFrame;
-        if (shizuku->ID == 0) {
-            ;
-        }
+
         // make sure we don't attempt to render more data than we have available in the source buffer
         if ((shizuku->frameNum + inNumberFrames) > shizuku->sound->soundBuffer[inBusNumber].numFrames) {
             UInt32 offset = (shizuku->frameNum + inNumberFrames) - shizuku->sound->soundBuffer[inBusNumber].numFrames;
@@ -734,7 +732,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     for (int i=0; i<BIN; i++) {
         for (int j=0; j<MAXSNDS; j++) {
             memset(&mUserData[j][i].soundBuffer, 0, sizeof(mUserData[j][i].soundBuffer));
-            binCnt[j] = 0;
+            binCnt[i] = 0;;
         }
     }
     
@@ -749,38 +747,39 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku[i].color[2] = 0;
         shizuku[i].distance = -1;
         shizuku[i].frameNum = 0;
-        shizuku[i].ID = i;
+        shizuku[i].ID = 0;
         shizuku[i].note = 0;
         shizuku[i].sound = NULL;
         shizuku[i].isAlive = false;
         shizuku[i].sn = -1;
     }
     
-    time = MAXTIMES-1;
-    numShizuku = 0;
-    resolution = 10;
-    cnt = 1;
+    time        = MAXTIMES-1;
+    numShizuku  = 0;
+    resolution  = 10;
+    cnt         = 1;
+    IDCnt       = 1;
     
-    s_metro.angle = 0;
-    s_metro.area = 0;
-    s_metro.color[0] = 0;
-    s_metro.color[1] = 0;
-    s_metro.color[2] = 0;
-    s_metro.distance = 0;
-    s_metro.frameNum = 0;
-    s_metro.ID = -1;
-    s_metro.note = 0;
-    metroON = true;
+    s_metro.angle       = 0;
+    s_metro.area        = 0;
+    s_metro.color[0]    = 0;
+    s_metro.color[1]    = 0;
+    s_metro.color[2]    = 0;
+    s_metro.distance    = 0;
+    s_metro.frameNum    = 0;
+    s_metro.ID          = -1;
+    s_metro.note        = 0;
+    metroON             = true;
     
-    s_wn.angle = 0;
-    s_wn.area = 0;
-    s_wn.color[0] = 127;
-    s_wn.color[1] = 127;
-    s_wn.color[2] = 127;
-    s_wn.distance = 0;
-    s_wn.frameNum = 0;
-    s_wn.ID = -2;
-    s_wn.note = 0;
+    s_wn.angle          = 0;
+    s_wn.area           = 0;
+    s_wn.color[0]       = 127;
+    s_wn.color[1]       = 127;
+    s_wn.color[2]       = 127;
+    s_wn.distance       = 0;
+    s_wn.frameNum       = 0;
+    s_wn.ID             = -2;
+    s_wn.note           = 0;
     
     printf("AUGraphController awakeFromNib\n");
     
@@ -802,7 +801,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if(++time == MAXTIMES) time = 0;
         if (metroON) [self metroCheck:time];
         for (UInt32 i=0; i<WN; i++) {
-            if (shizuku[i].distance == time) {
+            if (shizuku[i].distance == (SInt32)time) {
                 shizuku[i].note = 1;
                 shizuku[i].frameNum = 0;
                 if (shizuku[i].sound) printf("play %d\n",i);
@@ -839,7 +838,7 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     return sqrt(retVal);
 }
 
-- (void)updateDrop:(UInt32 )n dropData:(lo_arg **)dd;
+- (void)updateDrop:(SInt32 )n dropData:(lo_arg **)dd;
 { 
     int sound       = dd[0]->i-1;
     int distance    = dd[1]->i;
@@ -849,20 +848,23 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     int G           = dd[5]->i;
     int B           = dd[6]->i;
     int sn          = -1;
+    int sID         = 0;
+    if (n == -1) return;
     
     if (sound > -1) {
-        //新しい水滴は最新の音源を割り当てる
+        //新しい水滴は最新の音源とIDを割り当てる
         if (n == 0) {
             sn = (binCnt[sound] > 0 ? binCnt[sound]-1 : 0);
-        
+            sID = IDCnt++;
         } else {//既存の水滴は更新
-        sn = shizuku[n].sn;
+            sn = shizuku[n].sn;
+            sID = shizuku[n].ID;
         }
 
         if (sn > -1) shizuku[n].sound = &mUserData[sn][sound];
         else shizuku[n].sound = NULL;
         
-    } else shizuku[n].sound = NULL;
+    } else { shizuku[n].sound = NULL; return; }
     
     shizuku[n].distance     = distance;
     shizuku[n].area         = area;
@@ -871,9 +873,11 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     shizuku[n].color[1]     = G;
     shizuku[n].color[2]     = B;
     shizuku[n].sn           = sn;
+    shizuku[n].ID           = sID;
     
     [self setRGB:n];
     [self setAngle:n];
+    [self setArea:n];
     
     return;
 }
@@ -883,7 +887,7 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     int     distance    = dd[1]->i;
     int     angle       = dd[3]->i;
     int     i           = 0;
-    Float32 th          = 10;
+    Float32 th          = 20;
     
     while (calcDistance(shizuku[i].distance, distance, shizuku[i].angle, angle) > th) {
         if (++i == WN) return -1;
@@ -918,9 +922,12 @@ int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
         augc->shizuku[j].note       = augc->shizuku[j-1].note;
         augc->shizuku[j].sound      = augc->shizuku[j-1].sound;
         augc->shizuku[j].sn         = augc->shizuku[j-1].sn;
+        augc->shizuku[j].ID         = augc->shizuku[j-1].ID;
 
         [augc setRGB:j];
         [augc setAngle:j];
+        [augc setArea:j];
+
     }
 
     [augc updateDrop:0 dropData:argv];
@@ -929,6 +936,7 @@ int shizuku_add(const char *path, const char *types, lo_arg **argv, int argc,
     
     if (++augc->numShizuku == WN) augc->numShizuku = WN-1;
     NSLog(@"add! numShizuku:%d",augc->numShizuku);
+    
     return 0;
 }
 
@@ -939,7 +947,7 @@ int shizuku_update(const char *path, const char *types, lo_arg **argv, int argc,
 
     int s = [augc serchIdenticalDrop:argv];
     
-    if (s == -1) {
+    if (s == -1) {//既存の水滴が見つからなかったときは水滴の追加
         UInt32 j;
         for (j=WN-1; j>0; j--) {
             augc->shizuku[j].angle      = augc->shizuku[j-1].angle;
@@ -952,23 +960,38 @@ int shizuku_update(const char *path, const char *types, lo_arg **argv, int argc,
             augc->shizuku[j].note       = augc->shizuku[j-1].note;
             augc->shizuku[j].sound      = augc->shizuku[j-1].sound;
             augc->shizuku[j].sn         = augc->shizuku[j-1].sn;
+            augc->shizuku[j].ID         = augc->shizuku[j-1].ID;
 
             [augc setRGB:j];
             [augc setAngle:j];
+            [augc setArea:j];
         }
 
         [augc updateDrop:0 dropData:argv];
-        augc->shizuku[j].frameNum   = 0;
-        augc->shizuku[j].note       = 0;
+        augc->shizuku[0].frameNum   = 0;
+        augc->shizuku[0].note       = 0;
         
         if (++augc->numShizuku == WN) augc->numShizuku = WN-1;
 
         printf("err:update\n");
+        
         return 0;
     }
     
     [augc updateDrop:s dropData:argv];
     printf("update!\n");
+    
+    //send OSC Message
+    lo_address address = lo_address_new("localhost", "13000");
+    lo_send(address,
+            "/update",
+            "iiiii",//Drop ID, Bottle ID, Sound ID, posX, posY
+            augc->shizuku[s].ID,
+            argv[0]->i-1,
+            augc->shizuku[s].sn,
+            argv[7]->i,
+            argv[8]->i);
+    
     return 0;
 }
 
@@ -979,6 +1002,18 @@ int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
 
     int s = [augc serchIdenticalDrop:argv];
     if (s == -1) {printf("err:delete\n"); return 0;}
+    
+    //send OSC Message
+
+    /*lo_address address = lo_address_new("localhost", "13000");
+    lo_send(address,
+            "/delete",
+            "iiiii",//Drop ID(1 ~ ∞), Bottle ID(0 ~ 3), Sound ID(0 ~ 9), posX, posY
+            augc->shizuku[s].ID,
+            argv[0]->i-1,
+            augc->shizuku[s].sn,
+            argv[7]->i,
+            argv[8]->i);*/
     
     UInt32 j;
     for (j=s; j<WN-1; j++) {
@@ -992,10 +1027,11 @@ int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
         augc->shizuku[j].note       = augc->shizuku[j+1].note;
         augc->shizuku[j].sound      = augc->shizuku[j+1].sound;
         augc->shizuku[j].sn         = augc->shizuku[j+1].sn;
+        augc->shizuku[j].ID         = augc->shizuku[j+1].ID;
 
         [augc setRGB:j];
         [augc setAngle:j];
-        [augc setInputVolume:j value:(float)augc->shizuku[j].area/10.0];
+        [augc setArea:j];
     }
     
     augc->shizuku[j].angle      = 0;
@@ -1008,11 +1044,15 @@ int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
     augc->shizuku[j].note       = 0;
     augc->shizuku[j].sound      = NULL;
     augc->shizuku[j].sn         = -1;
+    augc->shizuku[j].ID         = 0;
+    
     [augc setRGB:j];
     [augc setAngle:j];
-    
+    [augc setArea:j];
+
     augc->numShizuku--;
     NSLog(@"delete! numShizuku:%d",augc->numShizuku);
+    
     return 0;
 }
 
@@ -1032,12 +1072,38 @@ int routo_handler(const char *path, const char *types, lo_arg **argv, int argc,
     return 0;
 }
 
+int head_handler(const char *path, const char *types, lo_arg **argv, int argc,
+                  void *data, void *user_data)
+{
+    NSLog(@"head");
+    lo_address address = lo_address_new("localhost", "13000");
+    lo_send(address,
+            "/head",
+            "i",//Drop ID(1 ~ ∞), Bottle ID(0 ~ 3), Sound ID(0 ~ 9), posX, posY
+            argv[0]->i);
+    return 0;
+}
+
+int start_handler(const char *path, const char *types, lo_arg **argv, int argc,
+                 void *data, void *user_data)
+{
+    NSLog(@"head");
+    lo_address address = lo_address_new("localhost", "13000");
+    lo_send(address,
+            "/head",
+            "i",//Drop ID(1 ~ ∞), Bottle ID(0 ~ 3), Sound ID(0 ~ 9), posX, posY
+            argv[0]->i);
+    return 0;
+}
+
 - (void)setUplo
 {
     st = lo_server_thread_new("15000", NULL);
     lo_server_thread_add_method(st, "/add", "iiiiiiiii", shizuku_add, self);
     lo_server_thread_add_method(st, "/existed", "iiiiiiiii", shizuku_update, self);
     lo_server_thread_add_method(st, "/delete", "iiiiiiiii", shizuku_delete, self);
+    lo_server_thread_add_method(st, "/start", "i", start_handler, self);
+    lo_server_thread_add_method(st, "/head", "i", head_handler, self);
     lo_server_thread_add_method(st, "/user", "iii", user_handler, self);
     lo_server_thread_add_method(st, "/routo", "i", routo_handler, self);
     lo_server_thread_start(st);
@@ -1119,7 +1185,7 @@ int routo_handler(const char *path, const char *types, lo_arg **argv, int argc,
     AudioUnitParameterValue volume;
     volume = (float)shizuku[n].area/10.0;
     
-    OSStatus result = AudioUnitSetParameter(mTimeAU[n], kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, volume, 0);
+    OSStatus result = AudioUnitSetParameter(mMixer, kMultiChannelMixerParam_Volume, kAudioUnitScope_Input, n, volume, 0);
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 }
 
