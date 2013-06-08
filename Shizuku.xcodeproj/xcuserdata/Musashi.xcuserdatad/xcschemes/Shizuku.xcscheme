@@ -15,20 +15,6 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8D1107260486CEB800E47090"
-               BuildableName = "AUTimePitchTest.app"
-               BlueprintName = "AUTimePitchTest"
-               ReferencedContainer = "container:AUTimePitchTest.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8D1107260486CEB800E47090"
                BuildableName = "Shizuku.app"
                BlueprintName = "Shizuku"
                ReferencedContainer = "container:Shizuku.xcodeproj">
@@ -47,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8D1107260486CEB800E47090"
-            BuildableName = "AUTimePitchTest.app"
-            BlueprintName = "AUTimePitchTest"
-            ReferencedContainer = "container:AUTimePitchTest.xcodeproj">
+            BuildableName = "Shizuku.app"
+            BlueprintName = "Shizuku"
+            ReferencedContainer = "container:Shizuku.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
    </TestAction>
@@ -66,9 +52,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8D1107260486CEB800E47090"
-            BuildableName = "AUTimePitchTest.app"
-            BlueprintName = "AUTimePitchTest"
-            ReferencedContainer = "container:AUTimePitchTest.xcodeproj">
+            BuildableName = "Shizuku.app"
+            BlueprintName = "Shizuku"
+            ReferencedContainer = "container:Shizuku.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <AdditionalOptions>
@@ -84,9 +70,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8D1107260486CEB800E47090"
-            BuildableName = "AUTimePitchTest.app"
-            BlueprintName = "AUTimePitchTest"
-            ReferencedContainer = "container:AUTimePitchTest.xcodeproj">
+            BuildableName = "Shizuku.app"
+            BlueprintName = "Shizuku"
+            ReferencedContainer = "container:Shizuku.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
