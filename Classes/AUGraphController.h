@@ -58,7 +58,7 @@
 
 #define MAXBUFS  1
 #define NUMFILES 1
-#define MAXTIMES 360
+#define MAXTIMES 288
 #define MAXSNDS  3
 #define BIN      4
 #define MAXSZKS  50
@@ -95,9 +95,10 @@ typedef struct {
     UInt32  frameNum;
     SInt32  ID;
     UInt32  note;
-    UInt32  isAlive;
+    SInt32  isAlive;
     SourceAudioBufferDataPtr    sound;
     SInt32                      sn;
+    SInt32  posX, posY;
 } Shizuku;
 
 typedef struct {
@@ -144,8 +145,10 @@ typedef struct {
 - (void)runAUGraph;
 - (void)timer:(UInt64)sampleTime;
 - (void)setUplo;
+- (void)addMethod;
 - (void)toggleMetro;
 - (void)toggleWN;
+- (void)playSound;
 - (void)setRGB:(UInt32)n;
 - (void)setR:(AudioUnitParameterValue)n;
 - (void)setG:(AudioUnitParameterValue)n;

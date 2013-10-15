@@ -25,7 +25,6 @@
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		EB8554CA173631220070DD86 /* liblo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EB8554C9173631220070DD86 /* liblo.a */; };
-		EB8554CC1737B73D0070DD86 /* A.aif in Resources */ = {isa = PBXBuildFile; fileRef = EB8554CB1737B73D0070DD86 /* A.aif */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,7 +69,6 @@
 		EB8554C7173631220070DD86 /* lo_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lo_types.h; sourceTree = "<group>"; };
 		EB8554C8173631220070DD86 /* lo_types_internal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lo_types_internal.h; sourceTree = "<group>"; };
 		EB8554C9173631220070DD86 /* liblo.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = liblo.a; sourceTree = "<group>"; };
-		EB8554CB1737B73D0070DD86 /* A.aif */ = {isa = PBXFileReference; lastKnownFileType = file; path = A.aif; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,7 +157,6 @@
 			children = (
 				5A0794EB17438D19007776C7 /* WhiteNoise.aiff */,
 				5A6457A117425F3A00E4EFD1 /* metro.aiff */,
-				EB8554CB1737B73D0070DD86 /* A.aif */,
 				1DDD58140DA1D0A300B32029 /* MainMenu.xib */,
 				2B14F145124AA3A8001DB7FB /* tick.aiff */,
 				2B7EF457123ADBE300D6ED22 /* SpeechTrack.mp4 */,
@@ -267,7 +264,6 @@
 				2B7EF458123ADBE300D6ED22 /* SpeechTrack.mp4 in Resources */,
 				2B14F146124AA3A8001DB7FB /* tick.aiff in Resources */,
 				2B61B8EC125283FE00CA7C17 /* InfoPlist.strings in Resources */,
-				EB8554CC1737B73D0070DD86 /* A.aif in Resources */,
 				5A6457A217425F3A00E4EFD1 /* metro.aiff in Resources */,
 				5A0794EC17438D19007776C7 /* WhiteNoise.aiff in Resources */,
 			);

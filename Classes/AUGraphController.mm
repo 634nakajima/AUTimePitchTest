@@ -1,50 +1,3 @@
-/*
-        File: AUGraphController.mm
-    Abstract: Demonstrates using the AUTimePitch.
-     Version: 1.0.1
-    
-    Disclaimer: IMPORTANT:  This Apple software is supplied to you by Apple
-    Inc. ("Apple") in consideration of your agreement to the following
-    terms, and your use, installation, modification or redistribution of
-    this Apple software constitutes acceptance of these terms.  If you do
-    not agree with these terms, please do not use, install, modify or
-    redistribute this Apple software.
-    
-    In consideration of your agreement to abide by the following terms, and
-    subject to these terms, Apple grants you a personal, non-exclusive
-    license, under Apple's copyrights in this original Apple software (the
-    "Apple Software"), to use, reproduce, modify and redistribute the Apple
-    Software, with or without modifications, in source and/or binary forms;
-    provided that if you redistribute the Apple Software in its entirety and
-    without modifications, you must retain this notice and the following
-    text and disclaimers in all such redistributions of the Apple Software.
-    Neither the name, trademarks, service marks or logos of Apple Inc. may
-    be used to endorse or promote products derived from the Apple Software
-    without specific prior written permission from Apple.  Except as
-    expressly stated in this notice, no other rights or licenses, express or
-    implied, are granted by Apple herein, including but not limited to any
-    patent rights that may be infringed by your derivative works or by other
-    works in which the Apple Software may be incorporated.
-    
-    The Apple Software is provided by Apple on an "AS IS" basis.  APPLE
-    MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
-    THE IMPLIED WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY AND FITNESS
-    FOR A PARTICULAR PURPOSE, REGARDING THE APPLE SOFTWARE OR ITS USE AND
-    OPERATION ALONE OR IN COMBINATION WITH YOUR PRODUCTS.
-    
-    IN NO EVENT SHALL APPLE BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL
-    OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-    INTERRUPTION) ARISING IN ANY WAY OUT OF THE USE, REPRODUCTION,
-    MODIFICATION AND/OR DISTRIBUTION OF THE APPLE SOFTWARE, HOWEVER CAUSED
-    AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
-    STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
-    
-    Copyright (C) 2012 Apple Inc. All Rights Reserved.
-    
-*/
-
 #import "AUGraphController.h"
 
 #pragma mark- Render
@@ -66,10 +19,6 @@ static void SilenceData(AudioBufferList *inData)
 		memset(inData->mBuffers[i].mData, 0, inData->mBuffers[i].mDataByteSize);
 }
 
-// audio render procedure to render our client data format
-// 2 ch interleaved 'lpcm' platform Canonical format - this is the mClientFormat data, see CAStreamBasicDescription SetCanonical()
-// note that this format can differ between platforms so be sure of the data type you're working with,
-// for example AudioSampleType may be Float32 or may be SInt16
 static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
     Shizuku *shizuku = (Shizuku *)inRefCon;
@@ -100,8 +49,13 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku->frameNum += inNumberFrames;
         if (shizuku->frameNum >= shizuku->sound->maxNumFrames) {
             shizuku->frameNum = 0;
-            shizuku->isAlive = false;
+            shizuku->isAlive = 0;
             if (shizuku->ID != -2) shizuku->note = 0;//WhiteNoise(ID:-2) -> Loop
+            
+            lo_send(lo_address_new("localhost", "13000"),
+                    "/stop",
+                    "i",//Drop ID
+                    shizuku->ID);
         }
     } else {
         SilenceData(ioData);
@@ -366,7 +320,7 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         if (result) { printf("AudioUnitSetProperty1 result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 
         [self enableInput:i isOn:1.0];
-        [self setInputVolume:i value:0.5];        
+        [self setInputVolume:i value:0.8];
     }
 
     // set the output stream format of the mixer
@@ -498,11 +452,12 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
     mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames = numPackets;
     
     // maxNumFrames is used to know when we need to loop the source
-    mUserData[binCnt[kID]][kID].maxNumFrames = mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames;
+    mUserData[binCnt[kID]][kID].maxNumFrames = (mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames > resolution * 44 * MAXTIMES ? resolution * 44 * MAXTIMES : mUserData[binCnt[kID]][kID].soundBuffer[0].numFrames);
     
     // close the file and dispose the ExtAudioFileRef
     ExtAudioFileDispose(xafref);
-    binCnt[kID] = (binCnt[kID] < MAXSNDS ? binCnt[kID]+1 : 0);
+    binCnt[kID]++;
+    if(binCnt[kID] >= MAXSNDS)  binCnt[kID] = 0;
 }
 
 - (void)loadMetro:(Float64)inGraphSampleRate
@@ -750,13 +705,15 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         shizuku[i].ID = 0;
         shizuku[i].note = 0;
         shizuku[i].sound = NULL;
-        shizuku[i].isAlive = false;
+        shizuku[i].isAlive = 0;
         shizuku[i].sn = -1;
+        shizuku[i].posX = -1;
+        shizuku[i].posY = -1;
     }
     
     time        = MAXTIMES-1;
     numShizuku  = 0;
-    resolution  = 10;
+    resolution  = 50;
     cnt         = 1;
     IDCnt       = 1;
     
@@ -797,24 +754,48 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 - (void)timer:(UInt64)sampleTime
 {
     if (sampleTime > (float)resolution * 44.1 * (float)cnt) {
-        
         cnt++;
-        if(++time == MAXTIMES) time = 0;
+        if(++time == MAXTIMES) {
+            //send OSC Message
+            lo_send(lo_address_new("localhost", "14999"),
+                    "/daybreak",
+                    "i",
+                    0);
+            
+            time = 0;
+        }
         
         if (metroON) [self metroCheck:time];
         
         for (UInt32 i=0; i<WN; i++) {
+            //サウンド再生
             if (shizuku[i].distance == (SInt32)time) {
                 
                 //NULL音源チェック
-                if (!shizuku[i].sound) { printf("err:play %d (null source)\n",shizuku[i].ID); continue; }
+                if (!shizuku[i].sound) { printf("err:play %d (null source)\n",shizuku[i].ID); [self deleteDrop:i]; continue; }
                 
                 //updateが来ていない水滴はdelete
-                if (!shizuku[i].isAlive) { NSLog(@"shizuku %d is not alive!",shizuku[i].ID); [self deleteDrop:i]; continue; }
+                if (shizuku[i].isAlive <= 0) { NSLog(@"shizuku %d is not alive!",shizuku[i].ID); [self deleteDrop:i]; continue; }
                 
                 shizuku[i].note = 1;
                 shizuku[i].frameNum = 0;
                 printf("play %d\n",shizuku[i].ID);
+                
+                lo_send(lo_address_new("localhost", "13000"),
+                        "/play",
+                        "i",//Drop ID
+                        shizuku[i].ID);
+            }
+        }
+        
+        //水滴の生存カウンタデクリメント
+        if (cnt % 5 == 0) {//1秒毎(resolution: 50(ms) * 5 = 0.25(s))
+            printf("cnt\n");
+            for (int i=0; i<WN; i++) {
+                if (shizuku[i].isAlive > 0) {
+                    //カウンタが0になったら水滴の削除
+                    if (--shizuku[i].isAlive <= 0) { printf("shibou\n"); [self deleteDrop:i]; }
+                }
             }
         }
     }
@@ -822,13 +803,13 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
 
 - (void)metroCheck:(UInt32)t
 {
-    if (t == 0) {
+    if (t % (MAXTIMES/4) == 0) {
         OSStatus result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 1200, 0);
         if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
         s_metro.frameNum = 0;
         s_metro.note = 1;
     }
-    else if (t % (MAXTIMES/8) == 0) {
+    else if (t % (MAXTIMES/16) == 0) {
 
         OSStatus result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 0, 0);
         if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
@@ -836,6 +817,14 @@ static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioAction
         s_metro.note = 1;
 
     }
+}
+
+- (void)playSound
+{
+    OSStatus result = AudioUnitSetParameter(vari_metroAU, kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, 0, 0);
+    if (result) { printf("AudioUnitSetParameter kTimePitchParam_Rate Global result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
+    s_metro.frameNum = 0;
+    s_metro.note = 1;
 }
 
 Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
@@ -847,9 +836,38 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     return sqrt(retVal);
 }
 
+Float32 calcDistanceXY(int x1, int x2, int y1, int y2) {
+    Float32 fx1 = (Float32)x1;
+    Float32 fx2 = (Float32)x2;
+    Float32 fy1 = (Float32)y1;
+    Float32 fy2 = (Float32)y2;
+    
+    Float32 retVal = pow(fx1-fx2, 2.0) + pow(fy1-fy2, 2.0);
+    return sqrt(retVal);
+}
+
+bool isIdenticalRGB(Shizuku s, int R, int G, int B) {
+    Float32 th = 30;
+    Float32 dis = sqrt(pow((int)s.color[0]-R, 2.0)+pow((int)s.color[1]-G, 2.0)+pow((int)s.color[2]-B, 2.0));
+    printf("RGB: %.2f\n", dis);
+    if (dis < th) return true;
+    else return false;
+}
+
+bool isIdenticalArea(Shizuku s, int area) {
+    Float32 th = 30;
+    Float32 dis = abs((int)s.area-area);
+    
+    printf("Area: %.2f\n", dis);
+    if (dis < th) return true;
+    else return false;
+}
+
 - (void)addDrop:(lo_arg **)dd;
 {
     SInt32 j;
+    int sound       = dd[0]->i-1;//BottleID:0~3
+
     for (j=WN-1; j>0; j--) {
         shizuku[j].angle      = shizuku[j-1].angle;
         shizuku[j].area       = shizuku[j-1].area;
@@ -858,10 +876,13 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
         shizuku[j].color[2]   = shizuku[j-1].color[2];
         shizuku[j].distance   = shizuku[j-1].distance;
         shizuku[j].frameNum   = shizuku[j-1].frameNum;
+        shizuku[j].isAlive    = shizuku[j-1].isAlive;
         shizuku[j].note       = shizuku[j-1].note;
         shizuku[j].sound      = shizuku[j-1].sound;
         shizuku[j].sn         = shizuku[j-1].sn;
         shizuku[j].ID         = shizuku[j-1].ID;
+        shizuku[j].posX       = shizuku[j-1].posX;
+        shizuku[j].posY       = shizuku[j-1].posY;
         
         [self setRGB:j];
         [self setAngle:j];
@@ -869,9 +890,19 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     }
     
     [self updateDrop:0 dropData:dd];
+    
+    shizuku[0].sn = (binCnt[sound] > 0 ? binCnt[sound]-1 : 0);
+    shizuku[0].ID = IDCnt++;
     shizuku[0].frameNum   = 0;
     shizuku[0].note       = 0;
-    if (++numShizuku == WN) numShizuku = WN-1;
+    
+    //音源の割当て
+    if (sound > -1) {
+        if (shizuku[0].sn > -1) shizuku[0].sound = &mUserData[shizuku[0].sn][sound];
+        else shizuku[0].sound = NULL;
+    } else { shizuku[0].sound = NULL; return; }
+    
+    numShizuku++;
     NSLog(@"add! numShizuku:%d",numShizuku);
 
     return;
@@ -879,31 +910,17 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
 
 - (void)updateDrop:(SInt32 )n dropData:(lo_arg **)dd;
 { 
-    int sound       = dd[0]->i-1;//BottleID:0~3
     int distance    = dd[1]->i;
     int area        = dd[2]->i;
     int angle       = dd[3]->i;
     int R           = dd[4]->i;
     int G           = dd[5]->i;
     int B           = dd[6]->i;
-    int sn          = -1;
-    int sID         = 0;
-    if (n == -1) return;
-    
-    if (sound > -1) {
-        //新しい水滴は最新の音源とIDを割り当てる
-        if (n == 0) {
-            sn = (binCnt[sound] > 0 ? binCnt[sound]-1 : 0);
-            sID = IDCnt++;
-        } else {//既存の水滴は更新
-            sn = shizuku[n].sn;
-            sID = shizuku[n].ID;
-        }
+    int X           = dd[7]->i;
+    int Y           = dd[8]->i;
 
-        if (sn > -1) shizuku[n].sound = &mUserData[sn][sound];
-        else shizuku[n].sound = NULL;
-        
-    } else { shizuku[n].sound = NULL; return; }
+
+    if (n == -1) return;
     
     shizuku[n].distance     = distance;
     shizuku[n].area         = area;
@@ -911,9 +928,9 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     shizuku[n].color[0]     = R;
     shizuku[n].color[1]     = G;
     shizuku[n].color[2]     = B;
-    shizuku[n].sn           = sn;
-    shizuku[n].ID           = sID;
-    shizuku[n].isAlive      = true;
+    shizuku[n].isAlive      = 4;
+    shizuku[n].posX         = X;
+    shizuku[n].posY         = Y;
     
     [self setRGB:n];
     [self setAngle:n];
@@ -933,10 +950,13 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
         shizuku[j].color[2]   = shizuku[j+1].color[2];
         shizuku[j].distance   = shizuku[j+1].distance;
         shizuku[j].frameNum   = shizuku[j+1].frameNum;
+        shizuku[j].isAlive    = shizuku[j+1].isAlive;
         shizuku[j].note       = shizuku[j+1].note;
         shizuku[j].sound      = shizuku[j+1].sound;
         shizuku[j].sn         = shizuku[j+1].sn;
         shizuku[j].ID         = shizuku[j+1].ID;
+        shizuku[j].posX       = shizuku[j+1].posX;
+        shizuku[j].posY       = shizuku[j+1].posY;
         
         [self setRGB:j];
         [self setAngle:j];
@@ -954,7 +974,9 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
     shizuku[j].sound      = NULL;
     shizuku[j].sn         = -1;
     shizuku[j].ID         = 0;
-    shizuku[j].isAlive    = false;
+    shizuku[j].isAlive    = 0;
+    shizuku[j].posX       = -1;
+    shizuku[j].posY       = -1;
     
     [self setRGB:j];
     [self setAngle:j];
@@ -967,14 +989,24 @@ Float32 calcDistance(int r1, int r2, int ang1, int ang2) {
 
 - (int)serchIdenticalDrop:(lo_arg **)dd
 {
-    int     distance    = dd[1]->i;
-    int     angle       = dd[3]->i;
+    //int     distance    = dd[1]->i;
+    //int     angle       = dd[3]->i;
+    //int     area        = dd[2]->i;
+    //int     R           = dd[4]->i;
+    //int     G           = dd[5]->i;
+    //int     B           = dd[6]->i;
+    int     x1          = dd[7]->i;
+    int     y1          = dd[8]->i;
+
     int     i           = 0;
-    Float32 th          = 25;
+    Float32 th          = 20;
     
-    while (calcDistance(shizuku[i].distance, distance, shizuku[i].angle, angle) > th) {
+    while (calcDistanceXY(shizuku[i].posX, x1, shizuku[i].posY, y1) > th) {
         if (++i == WN) return -1;
     }
+    
+    /*if(isIdenticalRGB(shizuku[i], R, G, B) && isIdenticalArea(shizuku[i], area)) return i;
+    else return -1;*/
     
     return i;
 }
@@ -1011,7 +1043,6 @@ int shizuku_update(const char *path, const char *types, lo_arg **argv, int argc,
     if (s == -1) {//既存の水滴が見つからなかったときは水滴の追加
         printf("err:update\n");
         [augc addDrop:argv];
-        if (++augc->numShizuku == WN) augc->numShizuku = WN-1;
         
         return 0;
     }
@@ -1038,7 +1069,7 @@ int shizuku_delete(const char *path, const char *types, lo_arg **argv, int argc,
     AUGraphController   *augc = (AUGraphController *)user_data;
 
     int s = [augc serchIdenticalDrop:argv];
-    if (s == -1) {printf("err:delete\n"); return 0;}
+    if (s == -1) { printf("err:delete\n"); return 0; }
     
     [augc deleteDrop:s];
     
@@ -1084,6 +1115,15 @@ int start_handler(const char *path, const char *types, lo_arg **argv, int argc,
     return 0;
 }
 
+int sound_handler(const char *path, const char *types, lo_arg **argv, int argc,
+                  void *data, void *user_data)
+{
+    NSLog(@"sound");
+    AUGraphController *augc = (AUGraphController *)user_data;
+    [augc playSound];
+    return 0;
+}
+
 - (void)setUplo
 {
     st = lo_server_thread_new("15000", NULL);
@@ -1093,12 +1133,14 @@ int start_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 - (void)addMethod
 {
-    lo_server_thread_add_method(st, "/add", "iiiiiiiii", shizuku_add, self);
+    //lo_server_thread_add_method(st, "/add", "iiiiiiiii", shizuku_add, self);
     lo_server_thread_add_method(st, "/existed", "iiiiiiiii", shizuku_update, self);
-    lo_server_thread_add_method(st, "/delete", "iiiiiiiii", shizuku_delete, self);
+    //lo_server_thread_add_method(st, "/delete", "iiiiiiiii", shizuku_delete, self);
     lo_server_thread_add_method(st, "/head", "i", head_handler, self);
     lo_server_thread_add_method(st, "/user", "iii", user_handler, self);
     lo_server_thread_add_method(st, "/routo", "i", routo_handler, self);
+    lo_server_thread_add_method(st, "/sound", "i", sound_handler, self);
+
 }
 
 - (void)toggleMetro
@@ -1165,9 +1207,68 @@ int start_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 - (void)setAngle:(UInt32)n
 {
-    AudioUnitParameterValue cent;
-    cent = ((float)shizuku[n].angle-180.0)*20.0/3.0;
+    SInt32 value;
+    if (shizuku[n].angle > 180) {
+        value = (shizuku[n].angle-180)%15;
+    } else {
+        value = (180-shizuku[n].angle)%15;
+    }
+    AudioUnitParameterValue cent = 0.0;
     
+    //cent = ((float)shizuku[n].angle-180.0)*20.0/3.0;
+    
+    switch (value) {
+        case 0:
+            cent = 1200.0;
+            break;
+        
+        case 1:
+            cent = 900.0;
+            break;
+        
+        case 2:
+            cent = 700.0;
+            break;
+        
+        case 3:
+            cent = 400.0;
+            break;
+            
+        case 4:
+            cent = 200.0;
+            break;
+            
+        case 5:
+            cent = 0.0;
+            break;
+            
+        case 6:
+            cent = 0.0;
+            break;
+            
+        case 7:
+            cent = -300.0;
+            break;
+            
+        case 8:
+            cent = -500.0;
+            break;
+            
+        case 9:
+            cent = -800.0;
+            break;
+            
+        case 10:
+            cent = -1000.0;
+            break;
+            
+        case 11:
+            cent = -1200.0;
+            break;
+            
+        default:
+            break;
+    }
     OSStatus result = AudioUnitSetParameter(mTimeAU[n], kVarispeedParam_PlaybackCents, kAudioUnitScope_Global, 0, cent, 0);
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }
 }
@@ -1175,7 +1276,7 @@ int start_handler(const char *path, const char *types, lo_arg **argv, int argc,
 - (void)setArea:(UInt32)n
 {
     AudioUnitParameterValue volume;
-    volume = (float)shizuku[n].area/10.0;
+    volume = (float)shizuku[n].area/1000.0;
     
     OSStatus result = AudioUnitSetParameter(mMixer, kMultiChannelMixerParam_Volume, kAudioUnitScope_Input, n, volume, 0);
     if (result) { printf("AudioUnitSetProperty result %ld %08X %4.4s\n", (long)result, (unsigned int)result, (char*)&result); return; }

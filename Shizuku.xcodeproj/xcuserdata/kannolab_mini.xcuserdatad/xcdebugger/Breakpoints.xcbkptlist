@@ -8,12 +8,51 @@
          ignoreCount = "0"
          continueAfterRunningActions = "No"
          filePath = "Classes/AUGraphController.mm"
-         timestampString = "392302931.540994"
+         timestampString = "403182992.905933"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "505"
-         endingLineNumber = "505"
+         startingLineNumber = "460"
+         endingLineNumber = "460"
          landmarkName = "-loadSpeechTrack:kobin:"
+         landmarkType = "5">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "Yes"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         filePath = "Classes/AUGraphController.mm"
+         timestampString = "403182992.905933"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "776"
+         endingLineNumber = "776"
+         landmarkName = "-timer:"
+         landmarkType = "5">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "Yes"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         filePath = "Classes/AUGraphController.mm"
+         timestampString = "403182992.905933"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1018"
+         endingLineNumber = "1018"
+         landmarkName = "shizuku_add(const char *path, const char *types, lo_arg **argv, int argc, void *data, void *user_data)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "Yes"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         filePath = "Classes/AUGraphController.mm"
+         timestampString = "403182992.905933"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1007"
+         endingLineNumber = "1007"
+         landmarkName = "-serchIdenticalDrop:"
          landmarkType = "5">
       </FileBreakpoint>
    </FileBreakpoints>
