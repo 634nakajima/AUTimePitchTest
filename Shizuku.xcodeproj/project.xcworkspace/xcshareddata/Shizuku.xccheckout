@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>A64D4991-6756-477B-88ED-CD34A8CA2F0C</string>
+	<key>IDESourceControlProjectName</key>
+	<string>Shizuku</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>C7183235CBCD9DFD1BA302297E3438DDEA8EF1FD</key>
+		<string>https://github.com/MusashiNakajima/AUTimePitchTest.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>Shizuku.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>C7183235CBCD9DFD1BA302297E3438DDEA8EF1FD</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/MusashiNakajima/AUTimePitchTest.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>C7183235CBCD9DFD1BA302297E3438DDEA8EF1FD</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>C7183235CBCD9DFD1BA302297E3438DDEA8EF1FD</string>
+			<key>IDESourceControlWCCName</key>
+			<string>AUTimePitchTest</string>
+		</dict>
+	</array>
+</dict>
+</plist>
